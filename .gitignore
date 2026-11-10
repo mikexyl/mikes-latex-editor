@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.latex-editor-build/
+.DS_Store
+web/src/lezer-latex/latex.mjs
+web/src/lezer-latex/latex.terms.mjs

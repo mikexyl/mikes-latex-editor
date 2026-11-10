@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LaTeX Editor</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <span class="project-name" id="project-name">…</span>
+      <label class="main-select">Main <select id="main-select"></select></label>
+      <button id="compile-btn" class="primary" title="Save all and compile (⌘S / Ctrl+S)">Compile</button>
+      <label class="compare-select" title="Show what changed since a git commit">Compare with
+        <select id="compare-select"><option value="">—</option></select>
+      </label>
+      <span class="status" id="status"></span>
+    </header>
+
+    <div class="banner" id="conflict" hidden>
+      <span id="conflict-text"></span>
+      <button id="conflict-reload">Reload from disk</button>
+      <button id="conflict-overwrite">Keep my version</button>
+    </div>
+
+    <main class="layout" id="layout">
+      <nav class="files" id="files" aria-label="Project files"></nav>
+
+      <section class="editor-pane">
+        <div class="pane-header">
+          <span id="current-file">No file open</span>
+          <span class="spacer"></span>
+          <button id="track-toggle" class="track-toggle" aria-pressed="false" title="Record edits as tracked changes">
+            <span class="switch" aria-hidden="true"></span>Track changes
+          </button>
+          <button id="comment-btn" title="Comment on the selection (⌘⌥M / Ctrl+Alt+M)">Comment</button>
+          <button id="review-toggle" aria-pressed="false" title="Show all changes and comments in this file">
+            Review <span class="badge" id="review-count" hidden></span>
+          </button>
+          <div class="mode-toggle" id="mode-toggle" role="group" aria-label="Editor mode">
+            <button data-mode="visual" aria-pressed="true">Visual</button>
+            <button data-mode="source" aria-pressed="false">Source</button>
+          </div>
+        </div>
+        <div class="compare-banner" id="compare-banner" hidden>
+          <span id="compare-text"></span>
+          <button class="link" id="compare-exit">Stop comparing</button>
+        </div>
+        <div class="editor-row">
+          <div class="editor" id="editor"></div>
+          <aside class="review" id="review" hidden aria-label="Changes and comments"></aside>
+        </div>
+        <div class="problems" id="problems" hidden>
+          <div class="pane-header">
+            <span id="problems-summary"></span>
+            <button class="link" id="log-toggle">Raw log</button>
+          </div>
+          <ul id="problems-list"></ul>
+          <pre id="raw-log" hidden></pre>
+        </div>
+      </section>
+
+      <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" title="Drag to resize"></div>
+
+      <section class="pdf-pane">
+        <div class="pane-header">
+          <span id="pdf-title">PDF</span>
+          <button id="find-in-pdf" title="Show the cursor position in the PDF (⌘⌥J / Ctrl+Alt+J). Double-click the PDF to jump back.">Find in PDF</button>
+          <span class="spacer"></span>
+          <button id="zoom-out" title="Zoom out">−</button>
+          <button id="zoom-fit" title="Fit width">Fit</button>
+          <button id="zoom-in" title="Zoom in">+</button>
+        </div>
+        <div class="pdf" id="pdf"></div>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

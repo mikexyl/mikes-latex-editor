@@ -1,0 +1,38 @@
+{
+  "name": "latex-editor",
+  "scripts": {
+    "dev": "tsx watch --exclude 'examples/**' --exclude 'web/**' server/index.ts",
+    "build": "vite build",
+    "start": "NODE_ENV=production tsx server/index.ts",
+    "typecheck": "tsc --noEmit",
+    "grammar": "lezer-generator web/src/lezer-latex/latex.grammar -o web/src/lezer-latex/latex.mjs",
+    "predev": "npm run grammar",
+    "prebuild": "npm run grammar",
+    "pretypecheck": "npm run grammar",
+    "test": "npm run grammar && tsx tests/track.test.ts"
+  },
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/legacy-modes": "^6.5.5",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
+    "@lezer/common": "^1.5.5",
+    "@lezer/highlight": "^1.2.5",
+    "@lezer/lr": "^1.4.12",
+    "codemirror": "^6.0.2",
+    "diff": "^9.0.0",
+    "express": "^5.3.0",
+    "katex": "^0.19.1",
+    "pdfjs-dist": "^6.5.438"
+  },
+  "devDependencies": {
+    "@lezer/generator": "^1.8.1",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.7"
+  }
+}

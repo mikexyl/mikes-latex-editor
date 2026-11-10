@@ -1,0 +1,85 @@
+// CodeMirror 6 setup. The source text is always the single source of truth; visual mode is a set
+// of extra extensions that decorate it (web/src/visual), switched on and off per editor state.
+import { basicSetup } from 'codemirror';
+import { Compartment, EditorSelection, EditorState, Prec, type Extension } from '@codemirror/state';
+import { EditorView, keymap } from '@codemirror/view';
+import { StreamLanguage } from '@codemirror/language';
+import { stex } from '@codemirror/legacy-modes/mode/stex';
+import { latex } from './visual/language.ts';
+import { visualDecorations } from './visual/decorations.ts';
+import { reviewHighlight } from './review/highlight.ts';
+import { trackChanges } from './review/track.ts';
+import { addComment } from './review/commands.ts';
+import { compareExtension } from './compare/diff.ts';
+
+const theme = EditorView.theme({
+  '&': { height: '100%', fontSize: '14px' },
+  '.cm-scroller': { fontFamily: 'var(--mono)', lineHeight: '1.6' },
+  '.cm-content': { maxWidth: '52rem', padding: '12px 0' },
+  '.cm-gutters': { background: 'var(--surface)', borderRight: '1px solid var(--border)', color: 'var(--muted)' },
+  '.cm-activeLineGutter': { background: 'var(--hover)' },
+});
+
+export type EditorHooks = {
+  onChange: () => void;
+  onSave: () => void;
+  onFindInPdf: () => void;
+};
+
+const visualCompartment = new Compartment();
+const trackCompartment = new Compartment();
+const visualExtensions: Extension = [visualDecorations, EditorView.editorAttributes.of({ class: 'cm-visual' })];
+
+export const supportsVisual = (path: string) => /\.(tex|ltx)$/i.test(path);
+
+export function editorExtensions(hooks: EditorHooks): Extension[] {
+  return [
+    basicSetup,
+    EditorView.lineWrapping,
+    theme,
+    Prec.high(keymap.of([
+      { key: 'Mod-s', preventDefault: true, run: () => (hooks.onSave(), true) },
+      { key: 'Mod-Alt-m', preventDefault: true, run: addComment },
+      { key: 'Mod-Alt-j', preventDefault: true, run: () => (hooks.onFindInPdf(), true) },
+    ])),
+    EditorView.updateListener.of((u) => { if (u.docChanged) hooks.onChange(); }),
+    compareExtension,
+  ];
+}
+
+export type Modes = { visual: boolean; tracking: boolean };
+
+export function createState(path: string, doc: string, base: Extension[], modes: Modes): EditorState {
+  const isTex = supportsVisual(path);
+  // In visual mode, whatever the cursor touches is shown as source. Start .tex files with the
+  // cursor at the very end (typically a blank line) so the top of the document starts rendered.
+  const anchor = isTex ? doc.length : 0;
+  return EditorState.create({
+    doc,
+    selection: EditorSelection.cursor(anchor),
+    extensions: [
+      ...base,
+      isTex ? [latex(), reviewHighlight] : StreamLanguage.define(stex),
+      visualCompartment.of(isTex && modes.visual ? visualExtensions : []),
+      trackCompartment.of(isTex && modes.tracking ? trackChanges : []),
+    ],
+  });
+}
+
+/** Apply source/visual mode and track changes to the editor, keeping the document and history. */
+export function setModes(view: EditorView, path: string, modes: Modes) {
+  const tex = supportsVisual(path);
+  view.dispatch({
+    effects: [
+      visualCompartment.reconfigure(tex && modes.visual ? visualExtensions : []),
+      trackCompartment.reconfigure(tex && modes.tracking ? trackChanges : []),
+    ],
+  });
+}
+
+export function goToLine(view: EditorView, line: number) {
+  const n = Math.min(Math.max(1, line), view.state.doc.lines);
+  const pos = view.state.doc.line(n).from;
+  view.dispatch({ selection: { anchor: pos }, effects: EditorView.scrollIntoView(pos, { y: 'center' }) });
+  view.focus();
+}
