@@ -2,7 +2,7 @@ import { EditorState, EditorSelection } from '@codemirror/state';
 import { ensureSyntaxTree } from '@codemirror/language';
 import { latex } from '../web/src/visual/language.ts';
 import { trackChanges } from '../web/src/review/track.ts';
-import { findReviewItems, resolveSpec } from '../web/src/review/model.ts';
+import { findReviewItems, resolveSpec, noteMacroFacet } from '../web/src/review/model.ts';
 
 let notices: string[] = [];
 (globalThis as any).window = { dispatchEvent: (e: any) => notices.push(e.detail) };
@@ -10,10 +10,10 @@ let notices: string[] = [];
 
 const PRE = '\\documentclass{article}\n\\begin{document}\n';
 const POST = '\n\\end{document}\n';
-function mk(body: string, cursor?: number | [number, number]) {
+function mk(body: string, cursor?: number | [number, number], macro = 'note') {
   const doc = PRE + body + POST;
   const c = cursor === undefined ? PRE.length : Array.isArray(cursor) ? cursor.map((x) => PRE.length + x) : PRE.length + cursor;
-  let s = EditorState.create({ doc, selection: Array.isArray(c) ? EditorSelection.range(c[0], c[1]) : EditorSelection.cursor(c), extensions: [latex(), trackChanges] });
+  let s = EditorState.create({ doc, selection: Array.isArray(c) ? EditorSelection.range(c[0], c[1]) : EditorSelection.cursor(c), extensions: [latex(), trackChanges, noteMacroFacet.of(macro)] });
   ensureSyntaxTree(s, s.doc.length, 5000);
   return s;
 }
@@ -87,5 +87,17 @@ const items = findReviewItems(s);
 check('found items', items.map((i) => i.kind + (i.note ? ':' + i.note : '')).join(','), 'added,deleted,replaced,highlight:why,comment:note');
 check('accept all', body(s.update(resolveSpec(s, items, true)).state), 'A new B C n D hi E F');
 check('reject all', body(s.update(resolveSpec(s, items, false)).state), 'A B old C o D hi E F');
+// note macro: \note{author}{text}
+s = mk('We use Adam \\note{XL}{cite it} here.');
+let notes = findReviewItems(s);
+check('note found', notes.map((i) => `${i.kind}:${i.author}:${i.note}`).join(','), 'note:XL:cite it');
+check('note resolved', body(s.update(resolveSpec(s, notes, true)).state), 'We use Adam here.');
+s = mk('We use Adam \\note{XL}{cite it} here.', 'We use Adam \\note{XL}{cite'.length); s = type(s, ' maybe');
+check('typing in note text untracked', body(s), 'We use Adam \\note{XL}{cite maybe it} here.');
+s = mk('A \\xl{one-arg note} B', undefined, 'xl');
+notes = findReviewItems(s);
+check('custom one-arg macro', notes.map((i) => `${i.kind}:${i.author}:${i.note}`).join(','), 'note::one-arg note');
+s = mk('A \\note{XL}{x} B', undefined, 'xl');
+check('other macro name is not a note', String(findReviewItems(s).length), '0');
 console.log(fail ? `${fail} FAILED` : 'all passed');
 if (fail) process.exit(1);

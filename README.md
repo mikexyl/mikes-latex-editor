@@ -73,8 +73,14 @@ Review markup is stored in the `.tex` source using the
   Consecutive edits merge; editing your own added text is a plain edit. Edits that would break
   the LaTeX (inside math, command names, labels/citations, the preamble, across braces) are
   refused with a message instead.
-- **Comment** (⌘⌥M / Ctrl+Alt+M): on a selection adds `\highlight[comment={…}]{…}`, otherwise
-  `\comment{…}`, with the cursor in the comment text.
+- **Notes** (⌘⌥M / Ctrl+Alt+M, or the Comment button): inserts your own note macro,
+  `\note{XL}{…}` by default, with your initials and the cursor in the note text. Notes render as
+  red bubbles in visual mode, appear in the review panel (Resolve deletes them), and print in the
+  PDF through your macro, e.g. `\newcommand{\note}[2]{\textcolor{red}{[#1: #2]}}`; if the paper
+  doesn't define `\note`, that definition is used when compiling. Initials, the macro name (one-
+  or two-argument) and the comment style are under *Comment settings* in the review panel.
+- **Comment** in `changes` style (pick it in *Comment settings*): on a selection adds
+  `\highlight[comment={…}]{…}`, otherwise `\comment{…}`.
 - **Review panel** lists every change and comment in the open file with Accept / Reject /
   Resolve, plus Accept all / Reject all. The same buttons appear inline next to the change the
   cursor is in. Undo works for all of it.

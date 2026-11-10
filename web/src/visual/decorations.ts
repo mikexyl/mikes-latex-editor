@@ -11,7 +11,7 @@ import {
   CommentWidget, ReviewActionsWidget, CommentFoldWidget, type TitleAuthor,
 } from './widgets.ts';
 import { parseTabular, TableWidget } from './table.ts';
-import { itemFromNode } from '../review/model.ts';
+import { itemFromNode, noteMacroFacet } from '../review/model.ts';
 
 export const mouseDownEffect = StateEffect.define<boolean>();
 
@@ -547,11 +547,13 @@ function build(state: EditorState, tree: Tree): Built {
             atomic.push(Decoration.widget({ widget: new CommentWidget(review.note, review.author), side: 1 }).range(review.to));
           } else if (review.kind === 'comment' && !editing) {
             atomic.push(Decoration.replace({ widget: new CommentWidget(review.note, review.author) }).range(review.from, review.to));
+          } else if (review.kind === 'note' && !editing) {
+            atomic.push(Decoration.replace({ widget: new CommentWidget(review.note, review.author, 'note') }).range(review.from, review.to));
           }
           if (editing) {
             atomic.push(Decoration.widget({ widget: new ReviewActionsWidget(review.from, review.kind), side: 2 }).range(review.to));
           }
-          return review.kind === 'comment' && !editing ? false : undefined;
+          return (review.kind === 'comment' || review.kind === 'note') && !editing ? false : undefined;
         }
         const ctrl = node.firstChild;
         if (!ctrl) return;
@@ -709,7 +711,8 @@ const visualField = StateField.define<FieldValue>({
     if (stillParsing || (mousedown && !tr.docChanged)) {
       return { ...value, mousedown, atomic: value.atomic.map(tr.changes), marks: value.marks.map(tr.changes) };
     }
-    if (tree !== value.tree || tr.selection || tr.docChanged || mouseReleased) {
+    const macroChanged = tr.startState.facet(noteMacroFacet) !== tr.state.facet(noteMacroFacet);
+    if (tree !== value.tree || tr.selection || tr.docChanged || mouseReleased || macroChanged) {
       return { ...build(tr.state, tree), tree, mousedown };
     }
     return mousedown === value.mousedown ? value : { ...value, mousedown };

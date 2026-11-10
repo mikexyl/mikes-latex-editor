@@ -11,6 +11,7 @@ import { reviewHighlight } from './review/highlight.ts';
 import { trackChanges } from './review/track.ts';
 import { addComment } from './review/commands.ts';
 import { compareExtension } from './compare/diff.ts';
+import { noteMacroFacet } from './review/model.ts';
 
 const theme = EditorView.theme({
   '&': { height: '100%', fontSize: '14px' },
@@ -28,6 +29,7 @@ export type EditorHooks = {
 
 const visualCompartment = new Compartment();
 const trackCompartment = new Compartment();
+const noteCompartment = new Compartment();
 const visualExtensions: Extension = [visualDecorations, EditorView.editorAttributes.of({ class: 'cm-visual' })];
 
 export const supportsVisual = (path: string) => /\.(tex|ltx)$/i.test(path);
@@ -47,7 +49,7 @@ export function editorExtensions(hooks: EditorHooks): Extension[] {
   ];
 }
 
-export type Modes = { visual: boolean; tracking: boolean };
+export type Modes = { visual: boolean; tracking: boolean; noteMacro: string };
 
 export function createState(path: string, doc: string, base: Extension[], modes: Modes): EditorState {
   const isTex = supportsVisual(path);
@@ -62,6 +64,7 @@ export function createState(path: string, doc: string, base: Extension[], modes:
       isTex ? [latex(), reviewHighlight] : StreamLanguage.define(stex),
       visualCompartment.of(isTex && modes.visual ? visualExtensions : []),
       trackCompartment.of(isTex && modes.tracking ? trackChanges : []),
+      noteCompartment.of(noteMacroFacet.of(modes.noteMacro)),
     ],
   });
 }
@@ -73,6 +76,7 @@ export function setModes(view: EditorView, path: string, modes: Modes) {
     effects: [
       visualCompartment.reconfigure(tex && modes.visual ? visualExtensions : []),
       trackCompartment.reconfigure(tex && modes.tracking ? trackChanges : []),
+      noteCompartment.reconfigure(noteMacroFacet.of(modes.noteMacro)),
     ],
   });
 }

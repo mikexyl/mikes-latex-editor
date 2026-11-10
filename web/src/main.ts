@@ -3,7 +3,7 @@ import type { EditorState, Text } from '@codemirror/state';
 import { api, ConflictError, type Project, type CompileResult, type Problem } from './api.ts';
 import { editorExtensions, createState, goToLine, setModes, supportsVisual, type Modes } from './editor.ts';
 import { ReviewPanel } from './review/panel.ts';
-import { addComment } from './review/commands.ts';
+import { addComment, setCommentPrefs, type CommentPrefs } from './review/commands.ts';
 import { compareField, setCompareBase } from './compare/diff.ts';
 import { setAssetBase } from './visual/widgets.ts';
 import { PdfViewer } from './pdf.ts';
@@ -46,9 +46,10 @@ const store = {
 
 let visualMode = store.get('mode') !== 'source';
 let tracking = false; // per project, restored in start()
-const modes = (): Modes => ({ visual: visualMode, tracking });
+let commentPrefs: CommentPrefs = { style: 'note', initials: '', macro: 'note' }; // per project
+const modes = (): Modes => ({ visual: visualMode, tracking, noteMacro: commentPrefs.macro });
 
-const view = new EditorView({ parent: $('editor'), state: createState('', '', extensions, { visual: false, tracking: false }) });
+const view = new EditorView({ parent: $('editor'), state: createState('', '', extensions, { visual: false, tracking: false, noteMacro: 'note' }) });
 const review = new ReviewPanel($('review'), view, (changes, comments) => {
   const badge = $('review-count');
   badge.textContent = String(changes + comments);
@@ -499,6 +500,20 @@ if (store.get('review-panel') === '1') {
   $('review').hidden = false;
   $('review-toggle').setAttribute('aria-pressed', 'true');
 }
+function applyCommentPrefs(p: CommentPrefs) {
+  const macroChanged = p.macro !== commentPrefs.macro;
+  commentPrefs = p;
+  store.set(`comment-prefs:${project.root}`, JSON.stringify(p));
+  setCommentPrefs(p, applyCommentPrefs);
+  review.setPrefs(p);
+  $('comment-btn').title = p.style === 'note'
+    ? `Add a note \\${p.macro}{${p.initials || 'initials'}}{…} (⌘⌥M / Ctrl+Alt+M)`
+    : 'Comment on the selection (⌘⌥M / Ctrl+Alt+M)';
+  if (macroChanged && current) setModes(view, current.path, modes());
+  review.render();
+}
+review.onPrefsChange = applyCommentPrefs;
+
 window.addEventListener('review-notice', (e) => setStatus((e as CustomEvent<string>).detail, true));
 
 // ---------- layout: draggable splitter ----------
@@ -555,6 +570,11 @@ async function start() {
   };
   $<HTMLButtonElement>('compile-btn').disabled = !main;
   tracking = store.get(`track:${project.root}`) === '1';
+  try {
+    const saved = JSON.parse(store.get(`comment-prefs:${project.root}`) ?? 'null');
+    if (saved) commentPrefs = { ...commentPrefs, ...saved };
+  } catch { /* ignore bad saved prefs */ }
+  applyCommentPrefs(commentPrefs);
 
   renderTree();
   void loadGitLog();

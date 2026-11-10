@@ -3,7 +3,7 @@
 import { StateField, type EditorState, type Range } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
-import { findReviewItems, type Arg } from './model.ts';
+import { findReviewItems, noteMacroFacet, type Arg } from './model.ts';
 
 function build(state: EditorState): DecorationSet {
   const marks: Range<Decoration>[] = [];
@@ -20,7 +20,10 @@ function build(state: EditorState): DecorationSet {
       mark(it.args[0], 'rv-added', `Replacement${who}`);
       mark(it.args[1], 'rv-deleted', `Replaced${who}`);
     } else if (it.kind === 'highlight') mark(it.args[0], 'rv-highlight', it.note);
-    else mark(it.args[0], 'rv-comment-text');
+    else if (it.kind === 'note') {
+      if (it.args.length === 2) mark(it.args[0], 'rv-note-author');
+      mark(it.args[it.args.length - 1], 'rv-note-text', it.author ? `Note by ${it.author}` : 'Note');
+    } else mark(it.args[0], 'rv-comment-text');
   }
   return Decoration.set(marks, true);
 }
@@ -29,6 +32,8 @@ export const reviewHighlight = StateField.define<{ decorations: DecorationSet; t
   create: (state) => ({ decorations: build(state), tree: syntaxTree(state) }),
   update(value, tr) {
     const tree = syntaxTree(tr.state);
+    const macroChanged = tr.startState.facet(noteMacroFacet) !== tr.state.facet(noteMacroFacet);
+    if (macroChanged) return { decorations: build(tr.state), tree };
     if (tree === value.tree && !tr.docChanged) return value;
     return { decorations: tr.docChanged && tree === value.tree ? value.decorations.map(tr.changes) : build(tr.state), tree };
   },

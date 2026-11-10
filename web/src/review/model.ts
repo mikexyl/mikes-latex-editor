@@ -1,11 +1,16 @@
 // Review markup in the source, using the `changes` package syntax so files stay compatible:
 //   \added[id=..]{new}   \deleted{old}   \replaced{new}{old}
 //   \highlight[comment={note}]{text}   \comment{note}
-import { Annotation, type EditorState, type TransactionSpec } from '@codemirror/state';
+// plus your own note macro, by default \note{author}{text} (e.g. defined as
+// \newcommand{\note}[2]{\textcolor{red}{[#1: #2]}}), which also prints in the PDF.
+import { Annotation, Facet, type EditorState, type TransactionSpec } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
 
-export type ReviewKind = 'added' | 'deleted' | 'replaced' | 'highlight' | 'comment';
+export type ReviewKind = 'added' | 'deleted' | 'replaced' | 'highlight' | 'comment' | 'note';
+
+/** Name of the note macro (without backslash). Configured per project. */
+export const noteMacroFacet = Facet.define<string, string>({ combine: (v) => v[0] ?? 'note' });
 export const REVIEW_KINDS = new Set<string>(['added', 'deleted', 'replaced', 'highlight', 'comment']);
 
 /** A brace argument: `open` is the position of `{`, `close` the position of `}`. */
@@ -15,7 +20,7 @@ export type ReviewItem = {
   kind: ReviewKind;
   from: number;
   to: number;
-  args: Arg[]; // replaced: [new, old]; others: [content]
+  args: Arg[]; // replaced: [new, old]; note: [author, text] or [text]; others: [content]
   opt: { from: number; to: number } | null; // [..] optional argument, if any
   author: string;
   note: string; // comment text (\comment content, or comment= option)
@@ -37,8 +42,10 @@ export function itemFromNode(state: EditorState, node: SyntaxNode): ReviewItem |
   if (node.name !== 'UnknownCommand') return null;
   const ctrl = node.firstChild;
   if (!ctrl || ctrl.name !== 'CtrlSeq') return null;
-  const kind = state.sliceDoc(ctrl.from + 1, ctrl.to);
-  if (!REVIEW_KINDS.has(kind)) return null;
+  const name = state.sliceDoc(ctrl.from + 1, ctrl.to);
+  const isNote = name === state.facet(noteMacroFacet);
+  if (!isNote && !REVIEW_KINDS.has(name)) return null;
+  const kind = isNote ? 'note' : name;
   const args: Arg[] = [];
   for (const a of node.getChildren('TextArgument')) {
     const open = a.getChild('OpenBrace');
@@ -46,10 +53,21 @@ export function itemFromNode(state: EditorState, node: SyntaxNode): ReviewItem |
     if (!open || !close) return null;
     args.push({ open: open.from, close: close.from });
   }
-  if (args.length !== (kind === 'replaced' ? 2 : 1)) return null;
+  if (kind === 'note' ? args.length < 1 || args.length > 2 : args.length !== (kind === 'replaced' ? 2 : 1)) return null;
   const optNode = node.getChild('OptionalArgument');
   const opt = optNode ? { from: optNode.from, to: optNode.to } : null;
   const { author, note } = parseOptions(opt ? state.sliceDoc(opt.from + 1, opt.to - 1) : '');
+  if (kind === 'note') {
+    return {
+      kind: 'note',
+      from: node.from,
+      to: args[args.length - 1].close + 1,
+      args,
+      opt,
+      author: args.length === 2 ? content(state, args[0]).trim() : author,
+      note: content(state, args[args.length - 1]).trim(),
+    };
+  }
   return {
     kind: kind as ReviewKind,
     from: node.from,
@@ -91,6 +109,7 @@ export function resolvedText(state: EditorState, it: ReviewItem, accept: boolean
     case 'replaced': return content(state, it.args[accept ? 0 : 1]);
     case 'highlight': return content(state, it.args[0]);
     case 'comment': return '';
+    case 'note': return '';
   }
 }
 
@@ -120,7 +139,7 @@ export function resolveSpec(state: EditorState, items: ReviewItem[], accept: boo
 }
 
 export function itemLabel(it: ReviewItem): string {
-  return { added: 'Added', deleted: 'Deleted', replaced: 'Replaced', highlight: 'Comment', comment: 'Comment' }[it.kind];
+  return { added: 'Added', deleted: 'Deleted', replaced: 'Replaced', highlight: 'Comment', comment: 'Comment', note: 'Note' }[it.kind];
 }
 
 /** Short readable text of an item, for the review panel. */
@@ -131,5 +150,9 @@ export function itemSummary(state: EditorState, it: ReviewItem): { text: string;
   };
   if (it.kind === 'replaced') return { text: clip(content(state, it.args[0])), old: clip(content(state, it.args[1])) };
   if (it.kind === 'highlight') return { text: clip(it.note), old: clip(content(state, it.args[0])) };
+  if (it.kind === 'note') return { text: clip(it.note) };
   return { text: clip(content(state, it.args[0])) };
 }
+
+/** Comments of any style (resolved, not accepted/rejected). */
+export const isCommentKind = (k: ReviewKind) => k === 'comment' || k === 'highlight' || k === 'note';

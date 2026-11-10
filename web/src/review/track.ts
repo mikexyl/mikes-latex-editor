@@ -100,6 +100,9 @@ type Change = { fromA: number; toA: number; fromB: number; text: string };
 type Result = { changes: ChangeSpec[]; cursor: number } | { error: string };
 
 const ownArg = (it: ReviewItem) => (it.kind === 'added' || it.kind === 'replaced' || it.kind === 'comment' ? it.args[0] : null);
+/** All of a note's arguments (author and text) are comment text: edits there aren't tracked. */
+const inNote = (it: ReviewItem, from: number, to: number) =>
+  it.kind === 'note' && it.args.some((a) => from >= a.open + 1 && to <= a.close);
 const deletedArg = (it: ReviewItem) => (it.kind === 'deleted' ? it.args[0] : it.kind === 'replaced' ? it.args[1] : null);
 
 function trackOne(state: EditorState, items: ReviewItem[], c: Change, backward: boolean, headB: number, depth = 0): Result {
@@ -107,7 +110,7 @@ function trackOne(state: EditorState, items: ReviewItem[], c: Change, backward: 
   const k = headB - c.fromB >= 0 && headB - c.fromB <= text.length ? headB - c.fromB : text.length;
   const own = items.find((it) => {
     const a = ownArg(it);
-    return (a && from >= a.open + 1 && to <= a.close) || (it.opt && from > it.opt.from && to < it.opt.to);
+    return (a && from >= a.open + 1 && to <= a.close) || (it.opt && from > it.opt.from && to < it.opt.to) || inNote(it, from, to);
   });
   const del = items.find((it) => { const a = deletedArg(it); return a && from >= a.open + 1 && to <= a.close; });
 
@@ -130,8 +133,8 @@ function trackOne(state: EditorState, items: ReviewItem[], c: Change, backward: 
   // ---- deletion ----
   if (!text) {
     if (own) {
-      const a = ownArg(own)!;
-      if (own.kind === 'added' && from === a.open + 1 && to === a.close) return { changes: [{ from: own.from, to: own.to }], cursor: own.from };
+      const a = ownArg(own);
+      if (a && own.kind === 'added' && from === a.open + 1 && to === a.close) return { changes: [{ from: own.from, to: own.to }], cursor: own.from };
       return { changes: [{ from, to }], cursor: from };
     }
     if (del) return { changes: [], cursor: backward ? del.from : del.to };

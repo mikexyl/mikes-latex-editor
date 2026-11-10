@@ -3,18 +3,61 @@ import { EditorSelection } from '@codemirror/state';
 import { reviewAction } from './model.ts';
 import { unsafeAt, unsafeRange, reviewNotice, REASONS } from './track.ts';
 
+export type CommentPrefs = {
+  /** What the Comment button inserts: your note macro, or `changes`-package comments. */
+  style: 'note' | 'changes';
+  /** Author for \note{author}{text}, e.g. your initials. */
+  initials: string;
+  /** Note macro name without the backslash. */
+  macro: string;
+};
+
+let prefs: CommentPrefs = { style: 'note', initials: '', macro: 'note' };
+let onPrefsChange: (p: CommentPrefs) => void = () => {};
+
+export function setCommentPrefs(p: CommentPrefs, onChange?: (p: CommentPrefs) => void) {
+  prefs = p;
+  if (onChange) onPrefsChange = onChange;
+}
+export const getCommentPrefs = () => prefs;
+
+const fail = (why: string) => {
+  reviewNotice((REASONS[why] ?? why).replace(/tracked|tracking/g, (w) => (w === 'tracked' ? 'commented' : 'commenting')));
+  return true;
+};
+
 /**
- * Add a comment: on a selection, \highlight[comment={…}]{selection}; otherwise \comment{…}.
- * The cursor lands inside the comment text, ready to type.
+ * Add a comment at the cursor, with the cursor left inside it ready to type:
+ * - note style: \note{XL}{…}, after the selection if there is one (the text stays as it is);
+ * - changes style: \highlight[comment={…}]{selection}, or \comment{…} without a selection.
  */
 export function addComment(view: EditorView): boolean {
   const { state } = view;
   const r = state.selection.main;
-  const why = r.empty ? unsafeAt(state, r.head) : unsafeRange(state, r.from, r.to);
-  if (why) {
-    reviewNotice((REASONS[why] ?? why).replace(/tracked|tracking/g, (w) => (w === 'tracked' ? 'commented' : 'commenting')));
+
+  if (prefs.style === 'note') {
+    if (!prefs.initials) {
+      const answer = window.prompt('Your initials for notes, e.g. XL:', '');
+      if (answer === null) return true;
+      prefs = { ...prefs, initials: answer.trim() };
+      onPrefsChange(prefs);
+    }
+    const why = unsafeAt(state, r.to);
+    if (why) return fail(why);
+    const prefix = `\\${prefs.macro}{${prefs.initials}}{`;
+    view.dispatch({
+      changes: { from: r.to, insert: `${prefix}}` },
+      selection: EditorSelection.cursor(r.to + prefix.length),
+      annotations: reviewAction.of(true),
+      userEvent: 'review.comment',
+      scrollIntoView: true,
+    });
+    view.focus();
     return true;
   }
+
+  const why = r.empty ? unsafeAt(state, r.head) : unsafeRange(state, r.from, r.to);
+  if (why) return fail(why);
   const prefix = r.empty ? '\\comment{' : '\\highlight[comment={';
   const insert = r.empty ? `${prefix}}` : `${prefix}}]{${state.sliceDoc(r.from, r.to)}}`;
   view.dispatch({

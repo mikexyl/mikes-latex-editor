@@ -42,13 +42,15 @@ export function compileFile(
 // compile without that package and without editing the preamble. They're injected before the
 // document is read and only take effect if nothing else defined these commands by
 // \begin{document}; a document that loads `changes` gets the real package. The PDF shows the
-// proposed text: additions in blue, deletions and comments hidden.
+// proposed text: additions in blue, deletions and comments hidden. \note{XL}{text} (the editor's
+// default note macro) prints as a red [XL: text], unless the document defines its own \note.
 const REVIEW_FALLBACKS = String.raw`\AtBeginDocument{%
   \providecommand\added[2][]{\ifdefined\textcolor\textcolor{blue}{#2}\else #2\fi}%
   \providecommand\deleted[2][]{}%
   \providecommand\replaced[3][]{\ifdefined\textcolor\textcolor{blue}{#2}\else #2\fi}%
   \providecommand\highlight[2][]{#2}%
   \providecommand\comment[2][]{}%
+  \providecommand\note[2]{\ifdefined\textcolor\textcolor{red}{[#1: #2]}\else[#1: #2]\fi}%
 }
 `;
 const FALLBACK_FILE = 'latex-editor-review.tex';

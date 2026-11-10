@@ -208,10 +208,10 @@ export class GraphicsWidget extends WidgetType {
 
 /** A comment shown inline as a small note. */
 export class CommentWidget extends WidgetType {
-  constructor(readonly note: string, readonly author: string) { super(); }
-  eq(o: CommentWidget) { return o.note === this.note && o.author === this.author; }
+  constructor(readonly note: string, readonly author: string, readonly variant: 'comment' | 'note' = 'comment') { super(); }
+  eq(o: CommentWidget) { return o.note === this.note && o.author === this.author && o.variant === this.variant; }
   toDOM() {
-    const c = el('span', 'rv-comment');
+    const c = el('span', this.variant === 'note' ? 'rv-comment rv-note' : 'rv-comment');
     if (this.author) c.append(el('span', 'rv-comment-author', this.author));
     c.append(document.createTextNode(this.note || 'empty comment'));
     c.title = 'Comment: click to edit';
@@ -238,7 +238,9 @@ export class ReviewActionsWidget extends WidgetType {
       });
       return b;
     };
-    if (this.kind === 'comment' || this.kind === 'highlight') box.append(button('✓ Resolve', 'Resolve comment (removes it, keeps the text)', true));
+    if (this.kind === 'comment' || this.kind === 'highlight' || this.kind === 'note') {
+      box.append(button('✓ Resolve', this.kind === 'highlight' ? 'Resolve comment (removes it, keeps the text)' : 'Resolve (delete the note)', true));
+    }
     else box.append(button('✓', 'Accept change', true), button('✗', 'Reject change', false));
     return box;
   }

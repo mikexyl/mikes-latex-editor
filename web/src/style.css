@@ -468,3 +468,30 @@ ins.rv-added, del.rv-deleted { padding: 0 2px; border-radius: 2px; }
 .vc-table tr.rule-below-thick td { border-bottom: 1.5px solid var(--text); }
 .vc-table tr.rule-below-thin td { border-bottom: 1px solid var(--text); }
 .vc-author-block, .vc-authors, .vc-title { overflow-wrap: anywhere; }
+
+/* ---------- note macro: \note{XL}{...} ---------- */
+.rv-note {
+  background: #fdecec;
+  border-color: #f2b8b5;
+  color: #a1281e;
+}
+.rv-note::before { content: none; }
+.rv-note .rv-comment-author {
+  background: #c0362c;
+  color: #fff;
+  border-radius: 6px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 700;
+  margin-right: 5px;
+}
+.rv-note-text { background: #fdecec; color: #a1281e; }
+.rv-note-author { color: #c0362c; font-weight: 700; }
+.review-tag-note { color: #c0362c; }
+
+.review-content { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.review-settings { border-top: 1px solid var(--border); padding: 6px 10px; font-size: 12px; }
+.review-settings summary { cursor: pointer; color: var(--muted); }
+.review-field { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
+.review-field select, .review-field input { font: inherit; max-width: 170px; }
+.review-hint { color: var(--muted); margin: 8px 0 2px; line-height: 1.4; }
