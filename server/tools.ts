@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { BUILD_DIR, compileFile, type CompileResult } from './compile.ts';
+import { BUILD_DIR, compileFile, pdfPathFor, type CompileResult } from './compile.ts';
 
 type Run = { code: number | null; stdout: string; stderr: string };
 
@@ -20,7 +20,7 @@ export function run(cmd: string, args: string[], opts: { cwd: string; env?: Node
   });
 }
 
-const pdfFor = (root: string, main: string) => path.join(root, BUILD_DIR, path.basename(main).replace(/\.tex$/, '.pdf'));
+const pdfFor = pdfPathFor;
 
 // ---------- SyncTeX ----------
 
@@ -107,7 +107,7 @@ export async function buildDiff(root: string, main: string, rev: string): Promis
     return { ...empty, available: false, message: 'latexdiff is not installed. Install it with `brew install latexdiff`, `sudo tlmgr install latexdiff` or `sudo apt install latexdiff`, or set LATEXDIFF to its path.' };
   }
   const start = Date.now();
-  const diffDir = path.join(root, BUILD_DIR, 'diff');
+  const diffDir = path.join(root, BUILD_DIR, 'diff', path.dirname(main));
   const oldDir = path.join(diffDir, 'old');
   await fs.rm(diffDir, { recursive: true, force: true });
   await fs.mkdir(oldDir, { recursive: true });
@@ -129,15 +129,16 @@ export async function buildDiff(root: string, main: string, rev: string): Promis
     return { ...empty, available: true, message: `latexdiff failed: ${d.stderr.trim().split('\n').slice(-3).join(' ')}` };
   }
   await fs.writeFile(diffTex, d.stdout);
-  // Compiled from the project root so \includegraphics paths resolve; BibTeX runs in the output
-  // folder, so point it at the project for .bib files.
+  // Compiled in the main file's folder so \includegraphics paths resolve; BibTeX runs in the
+  // output folder, so point it at the main file's folder for .bib files.
   const sep = path.delimiter;
+  const mainDir = path.join(root, path.dirname(main));
   const result = await compileFile(root, path.relative(root, diffTex), path.relative(root, diffDir), {
-    BIBINPUTS: `${root}${sep}${process.env.BIBINPUTS ?? ''}`,
-    BSTINPUTS: `${root}${sep}${process.env.BSTINPUTS ?? ''}`,
-  });
+    BIBINPUTS: `${mainDir}${sep}${process.env.BIBINPUTS ?? ''}`,
+    BSTINPUTS: `${mainDir}${sep}${process.env.BSTINPUTS ?? ''}`,
+  }, path.dirname(main));
   return { ...result, durationMs: Date.now() - start, available: true };
 }
 
 export const diffPdfPath = (root: string, main: string) =>
-  path.join(root, BUILD_DIR, 'diff', `${path.basename(main).replace(/\.tex$/, '')}-diff.pdf`);
+  path.join(root, BUILD_DIR, 'diff', path.dirname(main), `${path.basename(main).replace(/\.tex$/, '')}-diff.pdf`);

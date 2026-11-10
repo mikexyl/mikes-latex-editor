@@ -8,8 +8,9 @@ import type { SyntaxNode, Tree } from '@lezer/common';
 import { macrosFor } from './math.ts';
 import {
   TextWidget, ChipWidget, MathWidget, ItemWidget, EnvLineWidget, PreambleWidget, TitleWidget, GraphicsWidget,
-  CommentWidget, ReviewActionsWidget,
+  CommentWidget, ReviewActionsWidget, CommentFoldWidget, type TitleAuthor,
 } from './widgets.ts';
+import { parseTabular, TableWidget } from './table.ts';
 import { itemFromNode } from '../review/model.ts';
 
 export const mouseDownEffect = StateEffect.define<boolean>();
@@ -20,13 +21,43 @@ const ENV_LABELS: Record<string, string> = {
   theorem: 'Theorem', lemma: 'Lemma', corollary: 'Corollary', proposition: 'Proposition',
   definition: 'Definition', remark: 'Remark', example: 'Example', proof: 'Proof', claim: 'Claim',
   assumption: 'Assumption', conjecture: 'Conjecture', note: 'Note',
-  quote: '', quotation: '', center: '', itemize: '', enumerate: '', description: '',
+  quote: '', quotation: '', center: '', itemize: '', enumerate: '', description: '', algorithmic: '',
+  // IEEEtran
+  IEEEkeywords: 'Index Terms', IEEEproof: 'Proof', IEEEbiography: 'Biography',
+  IEEEbiographynophoto: 'Biography', thebibliography: 'References',
 };
 const LINE_CLASS_ENVS = new Set([
   'abstract', 'figure', 'table', 'algorithm', 'quote', 'quotation', 'center', 'verbatim', 'lstlisting',
   'theorem', 'lemma', 'corollary', 'proposition', 'definition', 'remark', 'example', 'proof', 'claim',
-  'assumption', 'conjecture', 'note',
+  'assumption', 'conjecture', 'note', 'IEEEkeywords', 'IEEEproof', 'thebibliography', 'algorithmic',
+  'IEEEbiography', 'IEEEbiographynophoto',
 ]);
+/** Environments whose first {argument} on the \begin line is shown in the label, e.g. a biography's name. */
+const LABEL_FROM_ARG = new Set(['IEEEbiography', 'IEEEbiographynophoto']);
+
+// Pseudocode (algorithmic and algpseudocode): keyword before/after the first argument.
+const ALGO_WITH_ARG: Record<string, [string, string]> = {
+  FOR: ['for', 'do'], For: ['for', 'do'], FORALL: ['for all', 'do'], ForAll: ['for all', 'do'],
+  WHILE: ['while', 'do'], While: ['while', 'do'], IF: ['if', 'then'], If: ['if', 'then'],
+  ELSIF: ['else if', 'then'], ElsIf: ['else if', 'then'], UNTIL: ['until', ''], Until: ['until', ''],
+  COMMENT: ['▷', ''], Comment: ['▷', ''], FUNCTION: ['function', ''], Function: ['function', ''],
+  PROCEDURE: ['procedure', ''], Procedure: ['procedure', ''],
+};
+const ALGO_PLAIN: Record<string, string> = {
+  STATE: '', State: '', Statex: '', ENDFOR: 'end for', EndFor: 'end for', ENDWHILE: 'end while',
+  EndWhile: 'end while', ENDIF: 'end if', EndIf: 'end if', ELSE: 'else', Else: 'else', LOOP: 'loop',
+  Loop: 'loop', ENDLOOP: 'end loop', EndLoop: 'end loop', REPEAT: 'repeat', Repeat: 'repeat',
+  RETURN: 'return', Return: 'return', REQUIRE: 'Require:', Require: 'Require:', ENSURE: 'Ensure:',
+  Ensure: 'Ensure:', ENDFUNCTION: 'end function', EndFunction: 'end function',
+  ENDPROCEDURE: 'end procedure', EndProcedure: 'end procedure', PRINT: 'print', TRUE: 'true',
+  FALSE: 'false', AND: 'and', OR: 'or', NOT: 'not', TO: 'to',
+};
+const ALGO_OPEN = /^\\(FOR|FORALL|WHILE|IF|LOOP|REPEAT|FUNCTION|PROCEDURE|For|ForAll|While|If|Loop|Repeat|Function|Procedure)\b/;
+const ALGO_CLOSE = /^\\(END[A-Z]*|UNTIL|End[A-Za-z]*|Until)\b/;
+const ALGO_MID = /^\\(ELSE|ELSIF|Else|ElsIf)\b/;
+
+/** Commands with an argument that only affect spacing/layout: hidden in visual mode. */
+const HIDE_WITH_ARG: Record<string, string> = { vspace: '', 'vspace*': '', hspace: ' ', 'hspace*': ' ', IEEEauthorrefmark: '' };
 const THEOREM_LIKE = new Set(['theorem', 'lemma', 'corollary', 'proposition', 'conjecture', 'claim']);
 
 const FORMATTING: Record<string, string> = {
@@ -47,6 +78,10 @@ const SYMBOLS: Record<string, string> = {
   '\\textbackslash': '\\', '\\ss': 'ß', '\\o': 'ø', '\\ae': 'æ', '\\aa': 'å', '\\i': 'ı',
   '\\textdegree': '°', '\\checkmark': '✓', '\\quad': ' ', '\\qquad': '  ',
   '\\,': ' ', '\\;': ' ', '\\!': '', '\\@': '', '\\/': '',
+  // Spacing and layout commands that print nothing worth showing while reviewing.
+  '\\hfill': ' ', '\\vfill': '', '\\noindent': '', '\\newpage': '', '\\clearpage': '',
+  '\\relax': '', '\\smallskip': '', '\\medskip': '', '\\bigskip': '', '\\protect': '',
+  '\\IEEEpeerreviewmaketitle': '', '\\IEEEoverridecommandlockouts': '', '\\par': '',
 };
 const BULLETS = ['•', '◦', '▪', '•'];
 
@@ -67,16 +102,83 @@ const aloneOnLines = (state: EditorState, node: { from: number; to: number }) =>
   return !state.sliceDoc(a.from, node.from).trim() && !state.sliceDoc(node.to, b.to).trim();
 };
 
-/** Strip LaTeX markup down to readable text, for the title block. */
-function plainText(tex: string): string {
-  return tex
-    .replace(/\\thanks\s*\{[^{}]*\}/g, '')
+/** Remove `\cmd{...}` (balanced braces), e.g. \thanks with nested formatting. */
+function removeCommand(tex: string, cmd: string): string {
+  let out = tex;
+  for (let i = out.indexOf(`\\${cmd}`); i >= 0; i = out.indexOf(`\\${cmd}`, i)) {
+    let j = i + cmd.length + 1;
+    while (/\s/.test(out[j] ?? '')) j++;
+    if (out[j] !== '{') { i = j; continue; }
+    let depth = 0;
+    for (; j < out.length; j++) {
+      if (out[j] === '\\') { j++; continue; }
+      if (out[j] === '{') depth++;
+      else if (out[j] === '}' && --depth === 0) break;
+    }
+    out = out.slice(0, i) + out.slice(j + 1);
+  }
+  return out;
+}
+
+/** The content of the first `\cmd{...}` in tex (balanced), or null. */
+function commandArg(tex: string, cmd: string): string | null {
+  const i = tex.indexOf(`\\${cmd}`);
+  if (i < 0) return null;
+  let j = i + cmd.length + 1;
+  while (/\s/.test(tex[j] ?? '')) j++;
+  if (tex[j] !== '{') return null;
+  let depth = 0;
+  for (let k = j; k < tex.length; k++) {
+    if (tex[k] === '\\') { k++; continue; }
+    if (tex[k] === '{') depth++;
+    else if (tex[k] === '}' && --depth === 0) return tex.slice(j + 1, k);
+  }
+  return null;
+}
+
+/** Split at top-level \and (author separator). */
+function splitAuthors(tex: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < tex.length; i++) {
+    const c = tex[i];
+    if (c === '{') depth++;
+    else if (c === '}') depth--;
+    else if (c === '\\' && depth === 0 && /^\\(and|AND)\b/.test(tex.slice(i))) {
+      parts.push(tex.slice(start, i));
+      start = i + 4;
+    } else if (c === '\\') i++;
+  }
+  parts.push(tex.slice(start));
+  return parts.map((p) => p.trim()).filter(Boolean);
+}
+
+/** Authors for the title block; understands IEEE \IEEEauthorblockN / \IEEEauthorblockA. */
+function parseAuthors(tex: string): TitleAuthor[] {
+  return splitAuthors(removeCommand(tex, 'thanks')).map((part) => {
+    const name = commandArg(part, 'IEEEauthorblockN');
+    const affil = commandArg(part, 'IEEEauthorblockA');
+    if (name === null) return { name: plainText(part), lines: [] };
+    return {
+      name: plainText(name, ' '),
+      lines: (affil ?? '').split(/\\\\(?:\[[^\]]*\])?/).map((l) => plainText(l)).filter(Boolean),
+    };
+  });
+}
+
+/** Strip LaTeX markup down to readable text. `lineBreak` replaces \\ (title: a real newline). */
+function plainText(tex: string, lineBreak = ', '): string {
+  return removeCommand(tex, 'thanks')
+    .replace(/\\textsuperscript\s*\{([^{}]*)\}/g, '$1')
     .replace(/\\today\b/g, new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }))
-    .replace(/\\\\(\[[^\]]*\])?/g, ', ')
+    .replace(/\\\\(\[[^\]]*\])?/g, '\u0000')
     .replace(/\\(?:and|AND)\b/g, ' · ')
+    .replace(/\\([%&_#$])/g, '$1')
     .replace(/\\[a-zA-Z@]+\*?\s*(\[[^\]]*\])?/g, '')
     .replace(/[{}~]/g, (c) => (c === '~' ? ' ' : ''))
-    .replace(/\s+/g, ' ')
+    .replace(/[ \t\n]+/g, ' ')
+    .replace(/\s*\u0000\s*/g, lineBreak)
     .trim();
 }
 
@@ -143,8 +245,54 @@ function build(state: EditorState, tree: Tree): Built {
   };
   const macros = macrosFor(doc, () => doc.toString());
 
+  /** Like replaceLines for a \begin line, but also allows a trailing \label{..} (shown as a tag). */
+  const replaceBeginLine = (begin: SyntaxNode, widget: (tag: string) => EnvLineWidget) => {
+    const line = doc.lineAt(begin.from);
+    const endLine = doc.lineAt(begin.to);
+    if (state.sliceDoc(line.from, begin.from).trim() || touchesLines(begin.from, begin.to)) return false;
+    const rest = state.sliceDoc(begin.to, endLine.to);
+    const m = /^\s*(?:\\label\s*\{([^}]*)\})?\s*(?:%.*)?$/.exec(rest);
+    if (!m) return false;
+    atomic.push(Decoration.replace({ widget: widget(m[1] ? `#${m[1]}` : ''), block: true }).range(line.from, endLine.to));
+    return true;
+  };
+
+  /** Indent pseudocode lines by nesting level (for/while/if ... end). */
+  const indentPseudocode = (from: number, to: number) => {
+    let depth = 0;
+    for (let n = doc.lineAt(from).number + 1, last = doc.lineAt(to).number; n < last; n++) {
+      const text = doc.line(n).text.trimStart();
+      if (ALGO_CLOSE.test(text) || ALGO_MID.test(text)) depth = Math.max(0, depth - 1);
+      if (depth) addLineClass(doc.line(n).from, doc.line(n).from, `vc-algo-${Math.min(depth, 6)}`);
+      if (ALGO_OPEN.test(text) || ALGO_MID.test(text)) depth++;
+    }
+  };
+
+  /** Replace a simple tabular with a rendered table; false if it can't be parsed (source stays). */
+  const renderTable = (node: SyntaxNode, begin: SyntaxNode, end: SyntaxNode) => {
+    if (!aloneOnLines(state, node) || touchesLines(node.from, node.to)) return false;
+    // The column spec is the last {..} group right after \begin{tabular} (tabularx has a width first).
+    const after = state.sliceDoc(begin.from, Math.min(end.from, begin.from + 400)).replace(/^\\begin\s*\{[^}]*\}/, '');
+    const groups = /^(\s*\{(?:[^{}]|\{[^{}]*\})*\})(\s*\{(?:[^{}]|\{[^{}]*\})*\})?/.exec(after);
+    if (!groups) return false;
+    const envName = envNameOf(node, state) ?? 'tabular';
+    const specGroup = envName === 'tabularx' && groups[2] ? groups[2] : groups[1];
+    const consumed = envName === 'tabularx' && groups[2] ? groups[0] : groups[1];
+    const spec = specGroup.trim().slice(1, -1);
+    const bodyStart = begin.from + state.sliceDoc(begin.from, begin.to).match(/^\\begin\s*\{[^}]*\}/)![0].length + consumed.length;
+    const table = parseTabular(spec, state.sliceDoc(bodyStart, end.from));
+    if (!table) return false;
+    atomic.push(Decoration.replace({
+      widget: new TableWidget(table, state.sliceDoc(node.from, node.to), macros.key, macros.macros), block: true,
+    }).range(doc.lineAt(node.from).from, doc.lineAt(node.to).to));
+    return true;
+  };
+
   let preamble: { to: number } | null = null;
-  const titleParts = { title: '', authors: [] as string[], date: '' };
+  let maketitleSeen = false;
+  const titleParts = { title: '', authors: [] as TitleAuthor[], date: '' };
+  let skipUntil = -1; // nodes inside a range already replaced (e.g. \hskip glue ... \relax)
+  let algoDepth = 0; // inside algorithmic environments
   const lists: { kind: string; n: number }[] = [];
   const listLines: { from: number; to: number; depth: number }[] = [];
 
@@ -160,15 +308,29 @@ function build(state: EditorState, tree: Tree): Built {
         if (end) replaceLines(end, new EnvLineWidget('hidden'));
         return;
       }
+      if (node.to <= skipUntil) return false;
       if (name === 'Title' || name === 'Author' || name === 'Date') {
-        const text = plainText(argText(node.getChild('TextArgument') ?? node.getChild('ShortTextArgument')));
-        if (name === 'Title') titleParts.title = text;
-        else if (name === 'Author') titleParts.authors.push(text);
-        else titleParts.date = text;
+        // Drop TeX comments first (IEEE templates put `% <-this % stops a space` inside \author).
+        const raw = argText(node.getChild('TextArgument') ?? node.getChild('ShortTextArgument')).replace(/(^|[^\\])%.*$/gm, '$1');
+        if (name === 'Title') titleParts.title = plainText(raw, '\n');
+        else if (name === 'Author') titleParts.authors.push(...parseAuthors(raw));
+        else titleParts.date = plainText(raw);
         return false;
       }
       if (name === 'Maketitle') {
+        // Like Overleaf: \title, \author etc. placed after \begin{document} (as IEEE templates do)
+        // join the collapsed preamble, since the title block shows them.
+        const pre = preamble as { to: number } | null;
+        if (pre && !maketitleSeen && node.from > pre.to) {
+          const lineBefore = doc.lineAt(node.from).number - 1;
+          if (lineBefore >= 1) pre.to = Math.max(pre.to, doc.line(lineBefore).to);
+        }
+        maketitleSeen = true;
         replaceLines(node, new TitleWidget(titleParts.title, titleParts.authors, titleParts.date));
+        return false;
+      }
+      if (name === 'Comment') {
+        if (node.to > node.from) marks.push(Decoration.mark({ class: 'vc-comment' }).range(node.from, node.to));
         return false;
       }
 
@@ -216,11 +378,20 @@ function build(state: EditorState, tree: Tree): Built {
           lists.push({ kind: env, n: 0 });
           listLines.push({ from: begin.to, to: end.from, depth: lists.length });
         }
+        if (env === 'algorithmic') {
+          algoDepth++;
+          indentPseudocode(begin.to, end.from);
+        }
+        if (name === 'TabularEnvironment' || env === 'tabular' || env === 'tabularx') {
+          if (renderTable(node, begin, end)) return false;
+        }
         if (env in ENV_LABELS) {
           const label = ENV_LABELS[env];
           const opt = begin.getChild('OptionalArgument');
-          const optText = opt && label && !/^(figure|table|algorithm)$/.test(env) ? ` (${plainText(argText(opt))})` : '';
-          replaceLines(begin, label ? new EnvLineWidget('begin', label + optText) : new EnvLineWidget('hidden'));
+          let extra = '';
+          if (LABEL_FROM_ARG.has(env)) extra = `: ${plainText(argText(begin.getChild('TextArgument')))}`;
+          else if (opt && label && !/^(figure|table|algorithm|thebibliography)$/.test(env)) extra = ` (${plainText(argText(opt))})`;
+          replaceBeginLine(begin, label ? (tag) => new EnvLineWidget('begin', label + extra, tag) : () => new EnvLineWidget('hidden'));
           replaceLines(end, label ? new EnvLineWidget('end') : new EnvLineWidget('hidden'));
         }
         return;
@@ -383,7 +554,76 @@ function build(state: EditorState, tree: Tree): Built {
           return review.kind === 'comment' && !editing ? false : undefined;
         }
         const ctrl = node.firstChild;
-        if (!ctrl || ctrl.nextSibling) return; // has arguments: leave as source
+        if (!ctrl) return;
+        const cmd = state.sliceDoc(ctrl.from + 1, ctrl.to);
+        const args = node.getChildren('TextArgument');
+        const brace = (a: SyntaxNode, which: 'OpenBrace' | 'CloseBrace') => a.getChild(which);
+
+        // Pseudocode keywords (always rendered, like list bullets).
+        if (algoDepth > 0 && cmd in ALGO_PLAIN && !args.length) {
+          const kw = ALGO_PLAIN[cmd];
+          atomic.push(Decoration.replace({ widget: new TextWidget(kw ? `${kw} ` : '', 'vc-algo-kw') }).range(node.from, node.to));
+          return false;
+        }
+        if (algoDepth > 0 && cmd in ALGO_WITH_ARG && args.length) {
+          const [pre, post] = ALGO_WITH_ARG[cmd];
+          const open = brace(args[0], 'OpenBrace');
+          const last = args[args.length - 1];
+          const close = brace(last, 'CloseBrace');
+          if (open && close) {
+            const cls = cmd.toLowerCase() === 'comment' ? 'vc-algo-comment' : 'vc-algo-kw';
+            atomic.push(Decoration.replace({ widget: new TextWidget(`${pre} `, cls) }).range(node.from, open.to));
+            if (args.length === 2) { // \Function{name}{args} -> name(args)
+              const c0 = brace(args[0], 'CloseBrace');
+              const o1 = brace(args[1], 'OpenBrace');
+              if (c0 && o1) hide(c0.from, o1.to, '(');
+              atomic.push(Decoration.replace({ widget: new TextWidget(post ? `) ${post}` : ')', 'vc-algo-kw') }).range(close.from, close.to));
+            } else {
+              atomic.push(Decoration.replace({ widget: new TextWidget(post ? ` ${post}` : '', 'vc-algo-kw') }).range(close.from, close.to));
+            }
+          }
+          return;
+        }
+
+        // IEEE drop cap: \IEEEPARstart{D}{eep}
+        if (cmd === 'IEEEPARstart' && args.length === 2) {
+          if (touches(node.from, node.to)) return;
+          const [a, b] = args;
+          const ao = brace(a, 'OpenBrace'), ac = brace(a, 'CloseBrace'), bo = brace(b, 'OpenBrace'), bc = brace(b, 'CloseBrace');
+          if (!ao || !ac || !bo || !bc) return;
+          hide(node.from, ao.to);
+          hide(ac.from, bo.to);
+          hide(bc.from, node.to);
+          if (ac.from > ao.to) marks.push(Decoration.mark({ class: 'vc-dropcap' }).range(ao.to, ac.from));
+          if (bc.from > bo.to) marks.push(Decoration.mark({ class: 'vc-parstart-rest' }).range(bo.to, bc.from));
+          return;
+        }
+        if (cmd === 'bibitem' && args.length) {
+          if (!touches(node.from, node.to)) {
+            atomic.push(Decoration.replace({ widget: new ChipWidget('cite', `[${argText(args[args.length - 1])}]`) }).range(node.from, node.to));
+          }
+          return false;
+        }
+        if (cmd === 'appendices' && !args.length) {
+          if (aloneOnLines(state, node)) replaceLines(node, new EnvLineWidget('begin', 'Appendices'));
+          return false;
+        }
+        if (cmd in HIDE_WITH_ARG && args.length) {
+          if (!touches(node.from, node.to)) atomic.push(Decoration.replace({ widget: new TextWidget(HIDE_WITH_ARG[cmd]) }).range(node.from, node.to));
+          return false;
+        }
+        // \hskip 1em plus 0.5em minus 0.4em\relax (IEEE bibliographies): hide the glue too.
+        if ((cmd === 'hskip' || cmd === 'vskip') && !args.length) {
+          const glue = /^\s*-?[\d.]+\s*(?:em|ex|pt|cm|mm|in|bp|sp|mu)(?:\s+plus\s+-?[\d.]+\s*\w+)?(?:\s+minus\s+-?[\d.]+\s*\w+)?\s*(?:\\relax\b\s?)?/
+            .exec(state.sliceDoc(ctrl.to, Math.min(doc.length, ctrl.to + 80)));
+          const to = ctrl.to + (glue?.[0].length ?? 0);
+          if (!touches(ctrl.from, to)) {
+            atomic.push(Decoration.replace({ widget: new TextWidget(cmd === 'hskip' ? ' ' : '') }).range(ctrl.from, to));
+            skipUntil = to;
+          }
+          return false;
+        }
+        if (ctrl.nextSibling) return; // other commands with arguments: leave as source
         const text = state.sliceDoc(ctrl.from, ctrl.to);
         const sym = SYMBOLS[text];
         if (sym !== undefined && !touches(ctrl.from, ctrl.to)) {
@@ -396,11 +636,35 @@ function build(state: EditorState, tree: Tree): Built {
       if (ref.node.type.is('$Environment')) {
         const env = envNameOf(ref.node, state)?.replace(/\*$/, '');
         if (ref.name === 'ListEnvironment' || env === 'itemize' || env === 'enumerate' || env === 'description') lists.pop();
+        if (env === 'algorithmic') algoDepth--;
       }
     },
   });
 
   for (const { from, to, depth } of listLines) addLineClass(from, to, `vc-list-${Math.min(depth, 4)}`);
+
+  // Fold runs of 4+ whole-line comments (templates are full of them) until the cursor enters.
+  const isComment = (k: number) => {
+    const line = doc.line(k);
+    const indent = line.text.length - line.text.trimStart().length;
+    return line.text.trimStart().startsWith('%') && tree.resolveInner(line.from + indent, 1).name === 'Comment';
+  };
+  for (let n = 1; n <= doc.lines; n++) {
+    if (!isComment(n)) continue;
+    let m = n;
+    while (m < doc.lines && isComment(m + 1)) m++;
+    if (m - n + 1 >= 4) {
+      const from = doc.line(n).from;
+      const to = doc.line(m).to;
+      if (!touches(from, to)) {
+        let preview = '';
+        for (let k = n; k <= m && !preview; k++) preview = doc.line(k).text.replace(/^\s*%+\s*/, '').slice(0, 60);
+        atomic.push(Decoration.replace({ widget: new CommentFoldWidget(m - n + 1, preview), block: true }).range(from, to));
+        for (const start of [...lineClass.keys()]) if (start >= from && start <= to) lineClass.delete(start);
+      }
+    }
+    n = m;
+  }
 
   // The preamble collapses to a bar until the cursor enters it.
   const pre = preamble as { to: number } | null;

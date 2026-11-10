@@ -69,14 +69,31 @@ export class ItemWidget extends WidgetType {
   ignoreEvent() { return false; }
 }
 
-/** Replaces a \begin{...} or \end{...} line. */
+/** Replaces a \begin{...} or \end{...} line. `tag` is e.g. the \label on the same line. */
 export class EnvLineWidget extends WidgetType {
-  constructor(readonly kind: 'begin' | 'end' | 'hidden', readonly label = '') { super(); }
-  eq(o: EnvLineWidget) { return o.kind === this.kind && o.label === this.label; }
+  constructor(readonly kind: 'begin' | 'end' | 'hidden', readonly label = '', readonly tag = '') { super(); }
+  eq(o: EnvLineWidget) { return o.kind === this.kind && o.label === this.label && o.tag === this.tag; }
   get estimatedHeight() { return this.kind === 'hidden' ? 0 : -1; }
   toDOM() {
     if (this.kind === 'hidden') return el('div', 'vc-hidden-line');
-    return el('div', `vc-env-${this.kind}`, this.label);
+    const d = el('div', `vc-env-${this.kind}`, this.label);
+    if (this.tag) d.append(el('span', 'vc-env-tag', this.tag));
+    return d;
+  }
+  ignoreEvent() { return false; }
+}
+
+/** A run of comment lines, folded. */
+export class CommentFoldWidget extends WidgetType {
+  constructor(readonly lines: number, readonly preview: string) { super(); }
+  eq(o: CommentFoldWidget) { return o.lines === this.lines && o.preview === this.preview; }
+  toDOM() {
+    const wrap = el('div', 'vc-comment-fold-wrap');
+    const d = el('div', 'vc-comment-fold', `% ${this.lines} comment lines`);
+    if (this.preview) d.append(el('span', 'vc-comment-fold-preview', ` · ${this.preview}`));
+    d.title = 'Click to show the comments';
+    wrap.append(d);
+    return wrap;
   }
   ignoreEvent() { return false; }
 }
@@ -92,13 +109,32 @@ export class PreambleWidget extends WidgetType {
   ignoreEvent() { return false; }
 }
 
+export type TitleAuthor = { name: string; lines: string[] };
+
 export class TitleWidget extends WidgetType {
-  constructor(readonly title: string, readonly authors: string[], readonly date: string) { super(); }
-  eq(o: TitleWidget) { return o.title === this.title && o.date === this.date && o.authors.join('\n') === this.authors.join('\n'); }
+  constructor(readonly title: string, readonly authors: TitleAuthor[], readonly date: string) { super(); }
+  eq(o: TitleWidget) { return o.title === this.title && o.date === this.date && JSON.stringify(o.authors) === JSON.stringify(this.authors); }
   toDOM() {
     const box = el('div', 'vc-maketitle');
-    if (this.title) box.append(el('div', 'vc-title', this.title));
-    if (this.authors.length) box.append(el('div', 'vc-authors', this.authors.join(' · ')));
+    if (this.title) {
+      const t = el('div', 'vc-title');
+      this.title.split('\n').forEach((line, i) => { if (i) t.append(document.createElement('br')); t.append(line); });
+      box.append(t);
+    }
+    if (this.authors.length) {
+      // IEEE-style author blocks (name + affiliation lines) as columns; plain names inline.
+      const blocks = this.authors.some((a) => a.lines.length);
+      const row = el('div', blocks ? 'vc-author-blocks' : 'vc-authors');
+      if (blocks) {
+        for (const a of this.authors) {
+          const b = el('div', 'vc-author-block');
+          b.append(el('div', 'vc-author-name', a.name));
+          for (const l of a.lines) b.append(el('div', 'vc-author-line', l));
+          row.append(b);
+        }
+      } else row.textContent = this.authors.map((a) => a.name).join(' · ');
+      box.append(row);
+    }
     if (this.date) box.append(el('div', 'vc-date', this.date));
     if (!this.title && !this.authors.length) box.append(el('div', 'vc-date', '\\maketitle'));
     return box;
@@ -111,8 +147,14 @@ export class TitleWidget extends WidgetType {
 type Rendered = { src: string } | { error: string };
 const figureCache = new Map<string, Promise<Rendered>>();
 
+/** Folder of the main file (project-relative); LaTeX resolves figure paths from there. */
+let assetBase = '';
+export function setAssetBase(dir: string) {
+  if (dir !== assetBase) { assetBase = dir; figureCache.clear(); }
+}
+
 async function loadFigure(path: string): Promise<Rendered> {
-  const res = await fetch(`/api/asset?path=${encodeURIComponent(path)}`);
+  const res = await fetch(`/api/asset?base=${encodeURIComponent(assetBase)}&path=${encodeURIComponent(path)}`);
   if (!res.ok) return { error: `Figure not found: ${path}` };
   const blob = await res.blob();
   if (blob.type !== 'application/pdf') return { src: URL.createObjectURL(blob) };

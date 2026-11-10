@@ -13,13 +13,27 @@ export type CompileResult = { ok: boolean; pdf: boolean; durationMs: number; pro
 // One compile at a time per project; a request that arrives mid-compile waits for it, then runs.
 let queue: Promise<unknown> = Promise.resolve();
 
+/**
+ * Build output for a root document: one folder per source folder, so `paper/main.tex` and
+ * `slides/main.tex` don't overwrite each other. Relative to the project root.
+ */
+export const buildDirFor = (main: string) => path.join(BUILD_DIR, path.dirname(main));
+export const pdfPathFor = (root: string, main: string) =>
+  path.join(root, buildDirFor(main), path.basename(main).replace(/\.tex$/, '.pdf'));
+
 export function compile(root: string, main: string): Promise<CompileResult> {
-  return compileFile(root, main, BUILD_DIR);
+  return compileFile(root, main, buildDirFor(main));
 }
 
-/** Compile any .tex file (relative to root) into outDir (relative to root), queued with the rest. */
-export function compileFile(root: string, file: string, outDir: string, env: NodeJS.ProcessEnv = {}): Promise<CompileResult> {
-  const run = queue.then(() => runLatexmk(root, file, outDir, env));
+/**
+ * Compile a .tex file (relative to root) into outDir (relative to root), queued with the rest.
+ * LaTeX runs in `cwdDir` (relative to root; default: the file's own folder), like running
+ * latexmk next to the file, so \includegraphics, \input and .bib paths resolve as usual.
+ */
+export function compileFile(
+  root: string, file: string, outDir: string, env: NodeJS.ProcessEnv = {}, cwdDir = path.dirname(file),
+): Promise<CompileResult> {
+  const run = queue.then(() => runLatexmk(root, file, outDir, env, cwdDir));
   queue = run.catch(() => {});
   return run;
 }
@@ -39,17 +53,22 @@ const REVIEW_FALLBACKS = String.raw`\AtBeginDocument{%
 `;
 const FALLBACK_FILE = 'latex-editor-review.tex';
 
-async function runLatexmk(root: string, main: string, outDir: string, env: NodeJS.ProcessEnv): Promise<CompileResult> {
+async function runLatexmk(root: string, main: string, outDir: string, env: NodeJS.ProcessEnv, cwdDir: string): Promise<CompileResult> {
   const start = Date.now();
-  await fs.mkdir(path.join(root, BUILD_DIR), { recursive: true });
+  const cwd = path.join(root, cwdDir);
+  const outAbs = path.join(root, outDir);
+  await fs.mkdir(outAbs, { recursive: true });
   await fs.writeFile(path.join(root, BUILD_DIR, FALLBACK_FILE), REVIEW_FALLBACKS);
   const jobname = path.basename(main).replace(/\.tex$/, '');
+  // Paths given to TeX are relative to cwd (TeX doesn't cope with spaces in paths).
+  const rel = (p: string) => path.relative(cwd, p).split(path.sep).join('/') || '.';
   const args = [
-    '-pdf', '-synctex=1', '-interaction=nonstopmode', '-file-line-error', `-outdir=${outDir}`,
-    `-jobname=${jobname}`, '-usepretex', `-pretex=\\input{${BUILD_DIR}/${FALLBACK_FILE}}`, main,
+    '-pdf', '-synctex=1', '-interaction=nonstopmode', '-file-line-error', `-outdir=${rel(outAbs)}`,
+    `-jobname=${jobname}`, '-usepretex', `-pretex=\\input{${rel(path.join(root, BUILD_DIR, FALLBACK_FILE))}}`,
+    rel(path.join(root, main)),
   ];
   const output = await new Promise<{ code: number | null; text: string }>((resolve) => {
-    const child = spawn('latexmk', args, { cwd: root, env: { ...process.env, ...env } });
+    const child = spawn('latexmk', args, { cwd, env: { ...process.env, ...env } });
     let text = '';
     child.stdout.on('data', (d) => (text += d));
     child.stderr.on('data', (d) => (text += d));
@@ -59,26 +78,27 @@ async function runLatexmk(root: string, main: string, outDir: string, env: NodeJ
   });
 
   const stem = path.basename(main).replace(/\.tex$/, '');
-  const logPath = path.join(root, outDir, `${stem}.log`);
+  const logPath = path.join(outAbs, `${stem}.log`);
   const log = existsSync(logPath) ? await fs.readFile(logPath, 'latin1') : '';
-  const problems = parseLog(log, root, main);
+  const problems = parseLog(log, root, cwd);
   if (output.code === -1) problems.unshift({ level: 'error', file: null, line: null, message: 'Could not run latexmk. Is TeX installed and on PATH?' });
 
   return {
     ok: output.code === 0 && !problems.some((p) => p.level === 'error'),
-    pdf: existsSync(path.join(root, outDir, `${stem}.pdf`)),
+    pdf: existsSync(path.join(outAbs, `${stem}.pdf`)),
     durationMs: Date.now() - start,
     problems,
     output: output.text.slice(-20_000),
   };
 }
 
-function normalize(file: string, root: string): string {
-  const abs = path.resolve(root, file);
+/** A path from the log (relative to the folder LaTeX ran in) as a project-relative path. */
+function normalize(file: string, root: string, cwd: string): string {
+  const abs = path.resolve(cwd, file);
   return path.relative(root, abs).split(path.sep).join('/');
 }
 
-export function parseLog(log: string, root: string, _main: string): Problem[] {
+export function parseLog(log: string, root: string, cwd: string = root): Problem[] {
   const problems: Problem[] = [];
   const seen = new Set<string>();
   const add = (p: Problem) => {
@@ -91,7 +111,7 @@ export function parseLog(log: string, root: string, _main: string): Problem[] {
     // -file-line-error format: ./sections/intro.tex:12: Undefined control sequence.
     const err = /^(\.?\/?[^:\s][^:]*\.(?:tex|sty|cls|bbl|aux)):(\d+): (.*)$/.exec(l);
     if (err) {
-      add({ level: 'error', file: normalize(err[1], root), line: Number(err[2]), message: err[3].trim() });
+      add({ level: 'error', file: normalize(err[1], root, cwd), line: Number(err[2]), message: err[3].trim() });
       continue;
     }
     if (l.startsWith('! ')) {

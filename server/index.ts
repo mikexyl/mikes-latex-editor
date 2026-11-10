@@ -7,7 +7,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { compile, BUILD_DIR } from './compile.ts';
+import { compile, BUILD_DIR, pdfPathFor } from './compile.ts';
 import { synctexForward, synctexBackward, gitLog, gitShow, buildDiff, diffPdfPath } from './tools.ts';
 
 const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -112,18 +112,19 @@ app.post('/api/compile', wrap(async (req, res) => {
 }));
 
 app.get('/api/pdf', wrap(async (req, res) => {
-  const main = resolveInRoot(req.query.main);
-  const pdf = path.join(root, BUILD_DIR, path.basename(main).replace(/\.tex$/, '.pdf'));
+  resolveInRoot(req.query.main);
+  const pdf = pdfPathFor(root, String(req.query.main));
   if (!existsSync(pdf)) throw new HttpError(404, 'no PDF yet');
   res.setHeader('Cache-Control', 'no-store');
   res.sendFile(pdf, { dotfiles: 'allow' });
 }));
 
-// A figure referenced from LaTeX, e.g. \includegraphics{figs/plot}. Like LaTeX, tries the usual
-// extensions when none is given. Paths are relative to the project root (where main lives).
+// A figure referenced from LaTeX, e.g. \includegraphics{figs/plot}. Like LaTeX, paths are relative
+// to the main file's folder (`base`), and the usual extensions are tried when none is given.
 const GRAPHICS_EXT = ['.pdf', '.png', '.jpg', '.jpeg', '.gif', '.svg'];
 app.get('/api/asset', wrap(async (req, res) => {
-  const rel = String(req.query.path ?? '');
+  const base = String(req.query.base ?? '');
+  const rel = path.posix.join(base, String(req.query.path ?? ''));
   const candidates = path.extname(rel) ? [rel] : GRAPHICS_EXT.map((e) => rel + e);
   for (const c of candidates) {
     const abs = resolveInRoot(c);

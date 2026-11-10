@@ -14,8 +14,16 @@ export function prepareMath(content: string): string {
   let tex = content
     .replace(/\\label\s*\{[^}]*\}/g, '')
     .replace(/\\nonumber\b/g, '\\notag');
-  // eqnarray is not supported by KaTeX; align is close enough for review purposes.
-  tex = tex.replace(/\\(begin|end)\{eqnarray(\*?)\}/g, '\\$1{align$2}').replace(/&\s*=\s*&/g, '&=');
+  // eqnarray and IEEEeqnarray (rCl columns: `a & = & b`) aren't supported by KaTeX; align with
+  // the relation moved into the right column looks the same (and keeps equation numbers).
+  const REL = String.raw`(=|<|>|\\le|\\ge|\\leq|\\geq|\\approx|\\equiv|\\sim|\\simeq|\\propto|\\neq|\\ne|:=|\\triangleq)`;
+  tex = tex
+    .replace(/\\(begin|end)\{eqnarray(\*?)\}/g, '\\$1{align$2}')
+    .replace(/\\begin\{IEEEeqnarray(\*?)\}(\[[^\]]*\])?\{[^}]*\}/g, '\\begin{align$1}')
+    .replace(/\\end\{IEEEeqnarray(\*?)\}/g, '\\end{align$1}')
+    .replace(/\\IEEEnonumber\*?/g, '\\notag')
+    .replace(/\\(IEEEyesnumber|IEEEeqnarraynumspace|IEEEyessubnumber)\*?/g, '')
+    .replace(new RegExp(String.raw`&\s*` + REL + String.raw`\s*&`, 'g'), '&$1');
   const env = /^\s*\\begin\{([^}]+)\}/.exec(tex)?.[1];
   if (env && !KATEX_ENVS.has(env)) {
     // Unknown display environment (e.g. flalign): render its body as gathered lines.

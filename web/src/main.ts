@@ -5,6 +5,7 @@ import { editorExtensions, createState, goToLine, setModes, supportsVisual, type
 import { ReviewPanel } from './review/panel.ts';
 import { addComment } from './review/commands.ts';
 import { compareField, setCompareBase } from './compare/diff.ts';
+import { setAssetBase } from './visual/widgets.ts';
 import { PdfViewer } from './pdf.ts';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -53,11 +54,16 @@ const review = new ReviewPanel($('review'), view, (changes, comments) => {
   badge.textContent = String(changes + comments);
   badge.hidden = changes + comments === 0;
 });
-// Chips for \input / \include open the file on Cmd/Ctrl+click.
+const mainDir = () => (main.includes('/') ? main.slice(0, main.lastIndexOf('/')) : '');
+
+// Chips for \input / \include open the file on Cmd/Ctrl+click. Like LaTeX, paths are relative to
+// the main file's folder.
 $('editor').addEventListener('vc-open-file', (e) => {
-  const path = (e as CustomEvent<string>).detail;
-  if (project.tree.some((x) => x.path === path)) void openFile(path);
-  else setStatus(`File not found: ${path}`, true);
+  const rel = (e as CustomEvent<string>).detail;
+  const candidates = [mainDir() ? `${mainDir()}/${rel}` : rel, rel];
+  const path = candidates.find((p) => project.tree.some((x) => x.path === p));
+  if (path) void openFile(path);
+  else setStatus(`File not found: ${rel}`, true);
 });
 view.contentDOM.setAttribute('aria-label', 'LaTeX source');
 const pdf = new PdfViewer($('pdf'));
@@ -539,9 +545,11 @@ async function start() {
   select.replaceChildren(...project.mains.map((m) => new Option(m, m)));
   const remembered = store.get(`main:${project.root}`);
   main = remembered && project.mains.includes(remembered) ? remembered : project.mains[0] ?? '';
+  setAssetBase(mainDir());
   select.value = main;
   select.onchange = () => {
     main = select.value;
+    setAssetBase(mainDir());
     store.set(`main:${project.root}`, main);
     void saveAllAndCompile();
   };

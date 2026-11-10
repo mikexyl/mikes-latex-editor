@@ -418,3 +418,53 @@ ins.rv-added, del.rv-deleted { padding: 0 2px; border-radius: 2px; }
 }
 @keyframes pdf-flash { 0%, 60% { opacity: 1; } 100% { opacity: 0; } }
 .df-hidden-change { color: #1f5fbf; font: 700 11px var(--sans); vertical-align: super; margin: 0 1px; cursor: help; }
+
+/* ---------- visual mode: templates (IEEE etc.) ---------- */
+.cm-visual .vc-comment, .cm-visual .vc-comment * { color: #9a9a94 !important; font-family: var(--mono); font-size: 12px; font-style: normal; }
+.vc-comment-fold-wrap { padding: 2px 0; contain: inline-size; }
+.vc-comment-fold {
+  font: 11px/1.5 var(--mono);
+  color: #9a9a94;
+  border-left: 2px solid var(--border);
+  padding: 0 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vc-comment-fold-preview { font-style: italic; }
+.vc-env-tag { margin-left: 8px; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--muted); font-family: var(--mono); font-size: 11px; }
+
+.vc-author-blocks { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 28px; margin-top: 10px; }
+.vc-author-block { text-align: center; min-width: 140px; }
+.vc-author-name { font-size: 1.02em; }
+.vc-author-line { font-size: 0.82em; color: var(--muted); line-height: 1.35; }
+
+.vc-dropcap { font-size: 1.9em; line-height: 1; font-weight: 500; vertical-align: -0.15em; margin-right: 1px; }
+.vc-parstart-rest { font-variant: small-caps; letter-spacing: 0.02em; }
+
+.cm-visual .vc-env-IEEEkeywords { font-size: 0.93em; font-style: italic; padding-left: 2em; padding-right: 2em; }
+.cm-visual .vc-env-IEEEproof { padding-left: 0.5em; border-left: 2px solid var(--border); }
+.cm-visual .vc-env-thebibliography { font-size: 0.9em; }
+.cm-visual .vc-env-IEEEbiography, .cm-visual .vc-env-IEEEbiographynophoto { font-size: 0.92em; }
+
+/* Pseudocode */
+.cm-visual .vc-env-algorithmic { font-family: var(--sans); font-size: 0.92em; }
+.vc-algo-kw { font-weight: 700; }
+.vc-algo-comment { color: var(--muted); }
+.cm-visual .vc-algo-1 { padding-left: 1.4em; }
+.cm-visual .vc-algo-2 { padding-left: 2.8em; }
+.cm-visual .vc-algo-3 { padding-left: 4.2em; }
+.cm-visual .vc-algo-4 { padding-left: 5.6em; }
+.cm-visual .vc-algo-5 { padding-left: 7em; }
+.cm-visual .vc-algo-6 { padding-left: 8.4em; }
+
+/* Tables */
+.vc-table-wrap { padding: 6px 0; overflow-x: auto; contain: inline-size; }
+.vc-table { border-collapse: collapse; margin: 0 auto; font-size: 0.9em; font-family: var(--serif); }
+.vc-table td { padding: 2px 10px; }
+.vc-table tr.rule-above-thick td { border-top: 1.5px solid var(--text); }
+.vc-table tr.rule-above-thin td { border-top: 1px solid var(--text); }
+.vc-table tr.rule-below-thick td { border-bottom: 1.5px solid var(--text); }
+.vc-table tr.rule-below-thin td { border-bottom: 1px solid var(--text); }
+.vc-author-block, .vc-authors, .vc-title { overflow-wrap: anywhere; }
