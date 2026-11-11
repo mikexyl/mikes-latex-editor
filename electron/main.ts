@@ -6,9 +6,33 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 // Development runs keep their data apart from the installed app's.
-if (!app.isPackaged) app.setName('LaTeX Editor Dev');
+if (!app.isPackaged) app.setName("Mike's Dev");
+// The app was first released as "LaTeX Editor": carry its data (recent projects, installed TeX
+// packages, window and UI settings) over once. Electron has already created the new folder by
+// now, so move the items rather than the folder.
+if (app.isPackaged) {
+  const dataDir = app.getPath('userData');
+  const legacy = path.join(path.dirname(dataDir), 'LaTeX Editor');
+  if (fs.existsSync(legacy) && !fs.existsSync(path.join(dataDir, 'projects.json'))) {
+    try {
+      fs.mkdirSync(dataDir, { recursive: true });
+      for (const item of ['projects.json', 'window.json', 'tex', 'Sample Project', 'Local Storage']) {
+        const from = path.join(legacy, item);
+        const to = path.join(dataDir, item);
+        if (!fs.existsSync(from)) continue;
+        fs.rmSync(to, { recursive: true, force: true });
+        fs.renameSync(from, to);
+      }
+      // Recent projects may point into the old folder (the sample project).
+      const recent = path.join(dataDir, 'projects.json');
+      if (fs.existsSync(recent)) fs.writeFileSync(recent, fs.readFileSync(recent, 'utf8').split(legacy).join(dataDir));
+      fs.rmSync(legacy, { recursive: true, force: true }); // what's left is Chromium caches
+    } catch { /* start fresh */ }
+  }
+}
+
 const appDir = app.getAppPath(); // holds dist/, examples/ and package.json
-const userData = app.getPath('userData'); // ~/Library/Application Support/LaTeX Editor, ~/.config/LaTeX Editor
+const userData = app.getPath('userData'); // ~/Library/Application Support/Mike's, ~/.config/Mike's
 // Recent projects etc. live with the app's data, not with the browser version's.
 process.env.LATEX_EDITOR_CONFIG = userData;
 
@@ -70,7 +94,7 @@ function createWindow(url: string) {
   const b = loadBounds();
   win = new BrowserWindow({
     x: b.x, y: b.y, width: b.width, height: b.height, minWidth: 700, minHeight: 450,
-    title: 'LaTeX Editor',
+    title: "Mike's",
     show: false,
     backgroundColor: '#ffffff',
     webPreferences: {
@@ -130,7 +154,7 @@ app.whenReady().then(async () => {
       token,
     });
   } catch (e) {
-    dialog.showErrorBox('LaTeX Editor', `The editor couldn't start:\n${(e as Error).message}`);
+    dialog.showErrorBox("Mike's", `The editor couldn't start:\n${(e as Error).message}`);
     app.quit();
     return;
   }

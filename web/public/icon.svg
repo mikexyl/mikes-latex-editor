@@ -1,28 +1,75 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#3b8a62"/>
-      <stop offset="1" stop-color="#255a40"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#2f5d7c"/>
+      <stop offset="1" stop-color="#1b3550"/>
     </linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fffdf7"/>
+      <stop offset="1" stop-color="#f3eee2"/>
+    </linearGradient>
+    <linearGradient id="pen" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e2533f"/>
+      <stop offset="0.55" stop-color="#c63a2a"/>
+      <stop offset="1" stop-color="#9e2b1f"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#06121f" flood-opacity="0.45"/>
+    </filter>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#06121f" flood-opacity="0.35"/>
+    </filter>
   </defs>
-  <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#bg)"/>
-  <!-- page -->
-  <path d="M150 104h160l72 72v232a20 20 0 0 1-20 20H150a20 20 0 0 1-20-20V124a20 20 0 0 1 20-20z" fill="#fbfbfa"/>
-  <path d="M310 104v52a20 20 0 0 0 20 20h52z" fill="#d9e6de"/>
-  <!-- heading and text lines -->
-  <rect x="166" y="150" width="104" height="18" rx="6" fill="#2f6f4f"/>
-  <rect x="166" y="196" width="180" height="10" rx="5" fill="#9aa6a0"/>
-  <rect x="166" y="222" width="180" height="10" rx="5" fill="#9aa6a0"/>
-  <!-- tracked change: added (green underline) and deleted (red strike) -->
-  <rect x="166" y="248" width="70" height="10" rx="5" fill="#9aa6a0"/>
-  <rect x="246" y="246" width="100" height="14" rx="4" fill="#cfe9d8"/>
-  <rect x="246" y="262" width="100" height="4" rx="2" fill="#3f9a62"/>
-  <rect x="166" y="282" width="120" height="10" rx="5" fill="#9aa6a0"/>
-  <rect x="296" y="282" width="50" height="10" rx="5" fill="#f3b4ae"/>
-  <rect x="292" y="285" width="58" height="4" rx="2" fill="#c0362c"/>
-  <rect x="166" y="308" width="150" height="10" rx="5" fill="#9aa6a0"/>
-  <!-- review note bubble -->
-  <path d="M300 336h108a24 24 0 0 1 24 24v44a24 24 0 0 1-24 24h-60l-30 26v-26h-18a24 24 0 0 1-24-24v-44a24 24 0 0 1 24-24z" fill="#e0483d"/>
-  <rect x="304" y="360" width="88" height="10" rx="5" fill="#fff"/>
-  <rect x="304" y="384" width="60" height="10" rx="5" fill="#fff" opacity="0.85"/>
+
+  <!-- tile (macOS grid: 824 px square inside 1024) -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="4"/>
+
+  <!-- the page, slightly tilted -->
+  <g transform="rotate(-5 512 520)" filter="url(#shadow)">
+    <path d="M300 214h330l110 110v468a26 26 0 0 1-26 26H300a26 26 0 0 1-26-26V240a26 26 0 0 1 26-26z" fill="url(#paper)"/>
+    <path d="M630 214v84a26 26 0 0 0 26 26h84z" fill="#e4dccb"/>
+
+    <!-- drop-cap M, the page's heading -->
+    <text x="318" y="410" font-family="Georgia, 'Times New Roman', serif" font-size="190" font-weight="700" fill="#1f3b57">M</text>
+
+    <!-- text lines -->
+    <g fill="#b9b2a3">
+      <rect x="500" y="300" width="110" height="18" rx="9"/>
+      <rect x="500" y="344" width="190" height="18" rx="9"/>
+      <rect x="500" y="388" width="160" height="18" rx="9"/>
+      <rect x="320" y="448" width="370" height="18" rx="9"/>
+      <rect x="320" y="532" width="370" height="18" rx="9"/>
+      <rect x="320" y="616" width="230" height="18" rx="9"/>
+      <rect x="490" y="658" width="80" height="18" rx="9"/>
+      <rect x="320" y="710" width="260" height="18" rx="9"/>
+    </g>
+
+    <!-- deletion: struck-through words -->
+    <rect x="320" y="490" width="200" height="18" rx="9" fill="#b9b2a3"/>
+    <rect x="540" y="490" width="150" height="18" rx="9" fill="#e9b3a9"/>
+    <path d="M530 500 L700 498" stroke="#c63a2a" stroke-width="10" stroke-linecap="round"/>
+
+    <!-- insertion: caret with the new words above the line -->
+    <rect x="320" y="574" width="230" height="18" rx="9" fill="#b9b2a3"/>
+    <path d="M556 600 L574 568 L592 600" fill="none" stroke="#c63a2a" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="530" y="540" width="110" height="14" rx="7" fill="#c63a2a" opacity="0.85"/>
+
+    <!-- tracked addition, underlined -->
+    <rect x="320" y="658" width="150" height="18" rx="9" fill="#b9d7c4"/>
+    <rect x="316" y="684" width="158" height="7" rx="3.5" fill="#3f8a5f"/>
+
+    <!-- margin comment -->
+    <rect x="320" y="752" width="200" height="18" rx="9" fill="#b9b2a3"/>
+  </g>
+
+  <!-- red pen across the corner -->
+  <g transform="translate(70 60) rotate(38 690 700)" filter="url(#soft)">
+    <rect x="560" y="672" width="300" height="56" rx="14" fill="url(#pen)"/>
+    <rect x="800" y="672" width="64" height="56" rx="10" fill="#2a2a2e"/>
+    <rect x="590" y="664" width="150" height="14" rx="7" fill="#d9d6cf"/>
+    <path d="M560 678 L490 700 L560 722 Z" fill="#efe5d2"/>
+    <path d="M512 693 L490 700 L512 707 Z" fill="#2a2a2e"/>
+    <rect x="575" y="684" width="220" height="8" rx="4" fill="#ffffff" opacity="0.25"/>
+  </g>
 </svg>

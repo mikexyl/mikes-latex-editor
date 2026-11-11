@@ -643,7 +643,7 @@ function renderDirty() {
   }
   const name = current ? current.path + (isDirty(current) ? ' ●' : '') : 'No file open';
   $('current-file').textContent = name;
-  document.title = `${current ? current.path + ' — ' : ''}${project?.name ?? 'LaTeX Editor'}`;
+  document.title = `${current ? current.path + ' — ' : ''}${project?.name ?? "Mike's"}`;
 }
 
 function renderProblems(result: CompileResult) {

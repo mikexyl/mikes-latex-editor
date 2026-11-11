@@ -1,6 +1,6 @@
 {
   "name": "latex-editor",
-  "productName": "LaTeX Editor",
+  "productName": "Mike's",
   "version": "0.1.0",
   "description": "A local LaTeX editor for reviewing and revising papers, with an Overleaf-style visual mode",
   "author": "mikexyl",
@@ -60,7 +60,7 @@
   },
   "build": {
     "appId": "io.github.mikexyl.latex-editor",
-    "productName": "LaTeX Editor",
+    "productName": "Mike's",
     "directories": {
       "output": "release",
       "buildResources": "build-resources"
@@ -100,7 +100,7 @@
       ]
     },
     "dmg": {
-      "title": "LaTeX Editor ${version}"
+      "title": "Mike's ${version}"
     },
     "linux": {
       "target": [
@@ -126,11 +126,12 @@
       ],
       "desktop": {
         "entry": {
-          "StartupWMClass": "LaTeX Editor"
+          "StartupWMClass": "Mike's"
         }
-      }
+      },
+      "executableName": "mikes"
     },
-    "artifactName": "${productName}-${version}-${arch}.${ext}"
+    "artifactName": "Mikes-${version}-${arch}.${ext}"
   },
-  "desktopName": "latex-editor.desktop"
+  "desktopName": "mikes.desktop"
 }

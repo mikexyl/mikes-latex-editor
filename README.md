@@ -1,4 +1,4 @@
-# LaTeX Editor
+# Mike's
 
 A personal LaTeX editor for reviewing and light revising, with a visual mode in the style of
 Overleaf's. Runs as a local web app on macOS and Ubuntu and works directly on plain `.tex`
@@ -18,7 +18,7 @@ in its own window.
 ```bash
 npm install
 npm run tex:build -- --from /usr/local/texlive/2026basic --platforms darwin,linux-x64
-npm run dist          # release/LaTeX Editor-<version>-{arm64,x64}.dmg and -x86_64.AppImage
+npm run dist          # release/Mikes-<version>-{arm64,x64}.dmg and -x86_64.AppImage
 ```
 
 - `npm run tex:build` builds the bundled TeX into `build/texlive`. Without `--from` it installs a
@@ -30,14 +30,14 @@ npm run dist          # release/LaTeX Editor-<version>-{arm64,x64}.dmg and -x86_
   desktop app from the sources (with hot reload).
 - The builds are **unsigned**. On macOS, the first launch is blocked: right-click the app and
   choose **Open**, or allow it in System Settings → Privacy & Security. If macOS says the app
-  "is damaged", run `xattr -cr "/Applications/LaTeX Editor.app"`. On Ubuntu, make the AppImage
+  "is damaged", run `xattr -cr "/Applications/Mike's.app"`. On Ubuntu, make the AppImage
   executable (`chmod +x`); Ubuntu 22.04 and later also need `sudo apt install libfuse2`.
 
 **TeX in the app is layered, like a container image:**
 
 - The **base** is the TeX Live inside the app. It's read-only and replaced by app updates.
-- The **user layer** (`~/Library/Application Support/LaTeX Editor/tex` on macOS,
-  `~/.config/LaTeX Editor/tex` on Ubuntu) holds packages installed from the app.
+- The **user layer** (`~/Library/Application Support/Mike's/tex` on macOS,
+  `~/.config/Mike's/tex` on Ubuntu) holds packages installed from the app.
 - Compiles see only these two: no system TeX, `~/Library/texmf` or `~/texmf`. (`latexmk` still
   reads `~/.latexmkrc` and a project's `latexmkrc`.)
 - When a compile stops on a missing package, the problems list offers **Install & recompile**.
@@ -53,9 +53,9 @@ npm install
 npm run install-app
 ```
 
-- **macOS:** adds **LaTeX Editor** to `~/Applications`; open it from Spotlight, Launchpad or
+- **macOS:** adds **Mike's** to `~/Applications`; open it from Spotlight, Launchpad or
   Finder, and drag it to the Dock to keep it there.
-- **Ubuntu:** adds **LaTeX Editor** to the app menu (Activities); right-click it there to add it to
+- **Ubuntu:** adds **Mike's** to the app menu (Activities); right-click it there to add it to
   the dock.
 - Both: adds a `latex-editor` terminal command in `~/.local/bin`:
   `latex-editor ~/papers/thesis` opens a folder, `latex-editor status`, `latex-editor stop`.

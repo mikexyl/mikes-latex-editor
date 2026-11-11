@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Installs a launcher for the editor:
-//   macOS:  ~/Applications/LaTeX Editor.app   (Dock, Launchpad, Spotlight)
+//   macOS:  ~/Applications/Mike's.app   (Dock, Launchpad, Spotlight)
 //   Ubuntu: ~/.local/share/applications/latex-editor.desktop   (app menu / Activities)
 //   both:   ~/.local/bin/latex-editor   (terminal command)
 // No admin rights needed. `npm run uninstall-app` removes them again.
@@ -20,7 +20,8 @@ const nodeOnPath = spawnSync('sh', ['-c', 'command -v node'], { encoding: 'utf8'
 const node = nodeOnPath && fs.existsSync(nodeOnPath) ? nodeOnPath : process.execPath;
 const uninstall = process.argv.includes('--uninstall');
 
-const macApp = path.join(home, 'Applications', 'LaTeX Editor.app');
+const macApp = path.join(home, 'Applications', "Mike's.app");
+const legacyMacApp = path.join(home, 'Applications', 'LaTeX Editor.app'); // the launcher's earlier name
 const desktopFile = path.join(home, '.local', 'share', 'applications', 'latex-editor.desktop');
 const binDir = path.join(home, '.local', 'bin');
 const cliPath = path.join(binDir, 'latex-editor');
@@ -39,7 +40,7 @@ const run = (cmd, args) => {
 
 function writeCli() {
   fs.mkdirSync(binDir, { recursive: true });
-  fs.writeFileSync(cliPath, `#!/bin/sh\n# LaTeX Editor launcher (installed by npm run install-app)\nexport PATH=${q(PATH)}\nexec ${q(node)} ${q(launcher)} "$@"\n`);
+  fs.writeFileSync(cliPath, `#!/bin/sh\n# Mike's (LaTeX editor) launcher (installed by npm run install-app)\nexport PATH=${q(PATH)}\nexec ${q(node)} ${q(launcher)} "$@"\n`);
   fs.chmodSync(cliPath, 0o755);
   log(`  terminal command: ${cliPath}`);
   if (!(process.env.PATH ?? '').split(':').includes(binDir)) {
@@ -60,6 +61,7 @@ function macIcon(resources) {
 }
 
 function installMac() {
+  fs.rmSync(legacyMacApp, { recursive: true, force: true });
   fs.rmSync(macApp, { recursive: true, force: true });
   const contents = path.join(macApp, 'Contents');
   const macos = path.join(contents, 'MacOS');
@@ -70,8 +72,8 @@ function installMac() {
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>LaTeX Editor</string>
-  <key>CFBundleDisplayName</key><string>LaTeX Editor</string>
+  <key>CFBundleName</key><string>Mike's</string>
+  <key>CFBundleDisplayName</key><string>Mike's</string>
   <key>CFBundleIdentifier</key><string>local.latex-editor.launcher</string>
   <key>CFBundleExecutable</key><string>latex-editor</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
@@ -101,7 +103,7 @@ function installLinux() {
   fs.mkdirSync(path.dirname(desktopFile), { recursive: true });
   fs.writeFileSync(desktopFile, `[Desktop Entry]
 Type=Application
-Name=LaTeX Editor
+Name=Mike's
 Comment=Review and revise LaTeX papers with a visual editor
 Exec=env ${q(`PATH=${PATH}`)} ${q(node)} ${q(launcher)} %f
 Icon=${icon}
@@ -113,7 +115,7 @@ StartupNotify=false
   fs.chmodSync(desktopFile, 0o755);
   spawnSync('update-desktop-database', [path.dirname(desktopFile)]);
   log(`  app menu entry: ${desktopFile}`);
-  log('    find "LaTeX Editor" in Activities; right-click it there to add it to the dock');
+  log('    find "Mike's" in Activities; right-click it there to add it to the dock');
 }
 
 function remove(p) {
@@ -121,7 +123,7 @@ function remove(p) {
 }
 
 if (uninstall) {
-  log('Removing the LaTeX Editor launcher…');
+  log("Removing the Mike's launcher…");
   // The on-demand server jobs the launcher registers on macOS (one per port).
   const agents = path.join(home, 'Library', 'LaunchAgents');
   if (process.platform === 'darwin' && fs.existsSync(agents)) {
@@ -131,11 +133,12 @@ if (uninstall) {
     }
   }
   remove(macApp);
+  remove(legacyMacApp);
   remove(desktopFile);
   remove(cliPath);
   log('Done. (Your projects and ~/.config/latex-editor are left alone.)');
 } else {
-  log('Installing the LaTeX Editor launcher…');
+  log("Installing the Mike's launcher…");
   if (process.platform === 'darwin') installMac();
   else if (process.platform === 'linux') installLinux();
   else log(`  no desktop launcher for ${process.platform}; use the terminal command`);
