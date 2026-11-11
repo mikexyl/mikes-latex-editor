@@ -90,6 +90,9 @@ editable nested editors, so the paper reads as one document; edits there are sav
 file. Use *Open file* in the inline header (or ⌘/Ctrl+click the chip) to open it on its own.
 Find in PDF and double-clicking the PDF work inside inline files too.
 
+The text width of visual mode is adjustable under ⚙ Settings in the top bar (Narrow / Default /
+Wide / Full width, or any width with the slider).
+
 Paragraphs flow like in the PDF: a single line break in the source is shown as a space (LaTeX
 treats it as one), so only blank lines, `\\` and structural lines (headings, `\item`, `\begin`,
 math, tables, pseudocode, comments) start a new line. Pressing Enter inside a paragraph starts a new

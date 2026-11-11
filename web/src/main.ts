@@ -1,6 +1,7 @@
 import { EditorView } from '@codemirror/view';
 import type { EditorState, Text } from '@codemirror/state';
 import { initProjectPicker } from './projects.ts';
+import { initSettings } from './settings.ts';
 import { api, setProjectRoot, ConflictError, type Project, type CompileResult, type Problem } from './api.ts';
 import { editorExtensions, createState, goToLine, setModes, supportsVisual, type Modes } from './editor.ts';
 import { ReviewPanel } from './review/panel.ts';
@@ -753,6 +754,7 @@ window.addEventListener('beforeunload', (e) => {
 });
 
 initProjectPicker({ beforeSwitch: saveAll, setStatus });
+initSettings({ onLayoutChange: () => { view.requestMeasure(); for (const v of nested.values()) v.requestMeasure(); } });
 
 // Another window switched this server to a different project: this page's files are stale.
 window.addEventListener('project-switched', (e) => {
