@@ -19,6 +19,11 @@
         <select id="compare-select"><option value="">—</option></select>
       </label>
       <span class="status" id="status"></span>
+      <div class="mode-toggle layout-toggle" id="layout-toggle" role="group" aria-label="Layout">
+        <button data-layout="editor" aria-pressed="false" title="Editor only">Editor</button>
+        <button data-layout="both" aria-pressed="true" title="Editor and PDF side by side">Both</button>
+        <button data-layout="pdf" aria-pressed="false" title="PDF only">PDF</button>
+      </div>
     </header>
 
     <div class="banner" id="switched-banner" hidden>
@@ -86,8 +91,10 @@
         </div>
         <div class="problems" id="problems" hidden>
           <div class="pane-header">
-            <span id="problems-summary"></span>
+            <button class="link problems-summary" id="problems-summary" title="Show or hide the list"></button>
             <button class="link" id="log-toggle">Raw log</button>
+            <span class="spacer"></span>
+            <button class="link" id="problems-toggle" aria-expanded="true" title="Hide the problems list">▾ Hide</button>
           </div>
           <ul id="problems-list"></ul>
           <pre id="raw-log" hidden></pre>

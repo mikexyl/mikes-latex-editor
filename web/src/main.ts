@@ -7,6 +7,7 @@ import { ReviewPanel } from './review/panel.ts';
 import { addComment, setCommentPrefs, type CommentPrefs } from './review/commands.ts';
 import { compareField, setCompareBase } from './compare/diff.ts';
 import { setAssetBase } from './visual/widgets.ts';
+import { setIncludeHost, includeHeights } from './visual/includes.ts';
 import { PdfViewer } from './pdf.ts';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -34,7 +35,9 @@ const extensions = editorExtensions({
     review.schedule();
     scheduleCompareStats();
     clearTimeout(autosaveTimer);
-    autosaveTimer = window.setTimeout(() => { if (current) save(current); }, AUTOSAVE_MS);
+    // All open files, not just the current one: included files are edited inline too.
+    autosaveTimer = window.setTimeout(() => { void saveAll(); }, AUTOSAVE_MS);
+    view.requestMeasure(); // an inline included file may have changed height
   },
   onSave: () => void saveAllAndCompile(),
   onFindInPdf: () => void findInPdf(),
@@ -64,7 +67,7 @@ $('editor').addEventListener('vc-open-file', (e) => {
   const rel = (e as CustomEvent<string>).detail;
   const candidates = [mainDir() ? `${mainDir()}/${rel}` : rel, rel];
   const path = candidates.find((p) => project.tree.some((x) => x.path === p));
-  if (path) void openFile(path);
+  if (path) { ensureEditorVisible(); void openFile(path); }
   else setStatus(`File not found: ${rel}`, true);
 });
 view.contentDOM.setAttribute('aria-label', 'LaTeX source');
@@ -73,23 +76,55 @@ pdf.clear('Compile to see the PDF.');
 
 // ---------- files ----------
 
-const liveState = (f: OpenFile) => (f === current ? view.state : f.state);
+/** Nested editors for \input files shown inline in visual mode (path -> view), attached or not. */
+const nested = new Map<string, EditorView>();
+/** Their DOM (header + editor), kept when scrolled out of view and reattached when back. */
+const pool = new Map<string, HTMLElement>();
+/** Inline editors currently on the page. */
+const attached = new Set<string>();
+
+/** Drop all inline editors (the main file changed), keeping their state in the open files. */
+function disposeInline() {
+  for (const [path, v] of nested) {
+    const f = open.get(path);
+    if (f) f.state = v.state;
+    v.destroy();
+  }
+  nested.clear();
+  pool.clear();
+  attached.clear();
+}
+
+const liveState = (f: OpenFile) => (f === current ? view.state : nested.get(f.path)?.state ?? f.state);
 const isDirty = (f: OpenFile) => !liveState(f).doc.eq(f.savedDoc);
 
-async function openFile(path: string): Promise<OpenFile> {
+/** Load a file into the open-files map (without showing it). */
+async function loadFile(path: string): Promise<OpenFile> {
   let f = open.get(path);
   if (!f) {
     const { content, mtime } = await api.read(path);
-    const state = createState(path, content, extensions, modes());
-    f = { path, state, savedDoc: state.doc, mtime, saving: Promise.resolve() };
-    open.set(path, f);
+    f = open.get(path); // loaded meanwhile?
+    if (!f) {
+      const state = createState(path, content, extensions, modes());
+      f = { path, state, savedDoc: state.doc, mtime, saving: Promise.resolve() };
+      open.set(path, f);
+    }
   }
+  return f;
+}
+
+async function openFile(path: string): Promise<OpenFile> {
+  const f = await loadFile(path);
   if (current !== f) {
     if (current) current.state = view.state;
+    // Inline editors belong to the page being left; their state (and history) goes back to the
+    // open files, so the file being opened here starts from its latest content.
+    disposeInline();
     current = f;
     view.setState(f.state);
     setModes(view, f.path, modes()); // the file may have been opened under other modes
   }
+  revealInTree(path);
   renderModeToggle();
   review.render();
   void applyCompareBase(f);
@@ -143,14 +178,90 @@ async function refreshFromDisk() {
 }
 
 function replaceContent(f: OpenFile, content: string) {
-  if (f === current) {
-    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: content } });
-    f.savedDoc = view.state.doc;
+  const live = f === current ? view : nested.get(f.path);
+  if (live) {
+    live.dispatch({ changes: { from: 0, to: live.state.doc.length, insert: content } });
+    f.savedDoc = live.state.doc;
   } else {
     f.state = f.state.update({ changes: { from: 0, to: f.state.doc.length, insert: content } }).state;
     f.savedDoc = f.state.doc;
   }
   renderDirty();
+}
+
+// ---------- \input files inline ----------
+
+/** Resolve an \input path like LaTeX does: relative to the main file's folder. */
+function resolveInclude(rel: string): string | null {
+  const candidates = [mainDir() ? `${mainDir()}/${rel}` : rel, rel];
+  return candidates.find((p) => project.tree.some((x) => x.path === p)) ?? null;
+}
+
+setIncludeHost({
+  async mount(el, rel) {
+    const message = (text: string) => { el.textContent = text; el.classList.add('vc-include-message'); return () => {}; };
+    const path = resolveInclude(rel);
+    if (!path) return message(`File not found: ${rel}`);
+    // No cycles, and each file inline only once (a second \input of it just shows the chip).
+    const ancestors = new Set<string>(current ? [current.path] : []);
+    for (let p = el.parentElement; p; p = p.parentElement) if (p.dataset.includePath) ancestors.add(p.dataset.includePath);
+    if (ancestors.has(path) || attached.has(path)) return message(`${rel} is already shown above.`);
+
+    const unmount = () => {
+      const wrapper = pool.get(path);
+      if (wrapper?.isConnected) includeHeights.set(rel, el.getBoundingClientRect().height);
+      wrapper?.remove(); // kept alive in the pool; reattached when scrolled back into view
+      attached.delete(path);
+    };
+    const reattach = () => {
+      el.textContent = '';
+      el.dataset.includePath = path;
+      el.append(pool.get(path)!);
+      attached.add(path);
+      nested.get(path)?.requestMeasure();
+      view.requestMeasure();
+      return unmount;
+    };
+    if (pool.has(path)) return reattach();
+
+    let f: OpenFile;
+    try { f = await loadFile(path); } catch (e) { return message(`Couldn't load ${rel}: ${(e as Error).message}`); }
+    if (!el.isConnected) return () => {};
+    if (pool.has(path)) return reattach(); // created meanwhile
+    const wrapper = document.createElement('div');
+    wrapper.className = 'vc-include-wrapper';
+    const header = document.createElement('div');
+    header.className = 'vc-include-header';
+    const name = document.createElement('span');
+    name.textContent = path;
+    const openBtn = document.createElement('button');
+    openBtn.className = 'link';
+    openBtn.textContent = 'Open file';
+    openBtn.onclick = () => void openFile(path);
+    header.append(name, openBtn);
+    wrapper.append(header);
+    const v = new EditorView({ parent: wrapper, state: f.state });
+    // Draw the whole file, not just the part CodeMirror thinks is on screen: inside the outer
+    // editor that guess lags behind, leaving blank stretches and changing heights (scroll jumps).
+    // This is CodeMirror's print mode; section files are small enough for it to be cheap.
+    (v as unknown as { viewState: { printing: boolean } }).viewState.printing = true;
+    setModes(v, path, modes());
+    nested.set(path, v);
+    pool.set(path, wrapper);
+    return reattach();
+  },
+});
+
+/** Apply the current modes (visual, tracking, note macro) to the main and inline editors. */
+function applyModes() {
+  if (current) setModes(view, current.path, modes());
+  for (const [path, v] of nested) setModes(v, path, modes());
+}
+
+/** The editor the user is working in: an inline included file if focused, else the main one. */
+function activeEditor(): { v: EditorView; path: string } | null {
+  for (const [path, v] of nested) if (v.hasFocus) return { v, path };
+  return current ? { v: view, path: current.path } : null;
 }
 
 // ---------- conflict banner ----------
@@ -238,9 +349,11 @@ async function findInPdf() {
     setStatus('Find in PDF uses the normal PDF. Stop comparing first.', true);
     return;
   }
-  const line = view.state.doc.lineAt(view.state.selection.main.head).number;
+  const active = activeEditor() ?? { v: view, path: current.path };
+  const line = active.v.state.doc.lineAt(active.v.state.selection.main.head).number;
+  ensurePdfVisible();
   try {
-    const { boxes } = await api.syncForward(main, current.path, line);
+    const { boxes } = await api.syncForward(main, active.path, line);
     if (boxes.length) pdf.showBoxes(boxes);
     else setStatus('No PDF location for this line. Compile first, or the line produces no output.', true);
   } catch (e) {
@@ -253,8 +366,12 @@ pdf.onDoubleClick = async (page, x, y) => {
   const hit = await api.syncBackward(main, page, x, y).catch(() => null);
   if (!hit?.file || !hit.line) return setStatus('No source location found there.', true);
   if (!project.tree.some((e) => e.path === hit.file)) return setStatus(`Source is outside the project: ${hit.file}`, true);
-  await openFile(hit.file);
-  goToLine(view, hit.line);
+  ensureEditorVisible();
+  const inline = nested.get(hit.file);
+  const target = inline ?? view; // shown inline in the current page, or open the file
+  if (!inline) await openFile(hit.file);
+  goToLine(target, hit.line);
+  setTimeout(() => target.focus(), 0); // after the double-click's own mouse events
 };
 
 $('find-in-pdf').onclick = () => void findInPdf();
@@ -364,29 +481,64 @@ $('compare-exit').onclick = () => { void stopCompare(); view.focus(); };
 function setStatus(text: string, error = false) {
   const s = $('status');
   s.textContent = text;
+  s.title = text; // the status line truncates long messages
   s.classList.toggle('error', error);
+}
+
+/** Folders collapsed in the file tree (per project, remembered). */
+let collapsed = new Set<string>();
+const saveCollapsed = () => store.set(`collapsed:${project.root}`, JSON.stringify([...collapsed]));
+const isHidden = (path: string) => {
+  // Hidden if any ancestor folder is collapsed.
+  for (let i = path.indexOf('/'); i >= 0; i = path.indexOf('/', i + 1)) {
+    if (collapsed.has(path.slice(0, i))) return true;
+  }
+  return false;
+};
+/** Expand the folders containing a file (e.g. when it's opened from elsewhere). */
+function revealInTree(path: string) {
+  let changed = false;
+  for (let i = path.indexOf('/'); i >= 0; i = path.indexOf('/', i + 1)) {
+    changed = collapsed.delete(path.slice(0, i)) || changed;
+  }
+  if (changed) saveCollapsed();
 }
 
 function renderTree() {
   const nav = $('files');
   nav.replaceChildren(
-    ...project.tree.map((e) => {
+    ...project.tree.filter((e) => !isHidden(e.path)).map((e) => {
       const depth = e.path.split('/').length - 1;
       const name = e.path.split('/').pop()!;
       const el = document.createElement('button');
       el.className = 'item';
-      el.style.paddingLeft = `${10 + depth * 14}px`;
+      el.style.paddingLeft = `${8 + depth * 14}px`;
       el.dataset.path = e.path;
-      el.textContent = e.type === 'dir' ? `${name}/` : name;
       if (e.type === 'dir') {
+        const open = !collapsed.has(e.path);
+        const caret = document.createElement('span');
+        caret.className = 'caret';
+        caret.textContent = open ? '▼' : '▶';
+        el.append(caret, `${name}/`);
         el.classList.add('dir');
-        el.tabIndex = -1;
-      } else if (!TEXT_EXT.test(e.path)) {
+        el.setAttribute('aria-expanded', String(open));
+        el.title = open ? 'Collapse folder' : 'Expand folder';
+        el.onclick = () => {
+          if (open) collapsed.add(e.path); else collapsed.delete(e.path);
+          saveCollapsed();
+          renderTree();
+        };
+        return el;
+      }
+      const spacer = document.createElement('span');
+      spacer.className = 'caret';
+      el.append(spacer, name);
+      if (!TEXT_EXT.test(e.path)) {
         el.classList.add('binary');
         el.title = 'Not a text file';
         el.tabIndex = -1;
       } else {
-        el.onclick = () => void openFile(e.path);
+        el.onclick = () => { ensureEditorVisible(); void openFile(e.path); };
         if (current?.path === e.path) el.classList.add('active');
       }
       return el;
@@ -425,6 +577,7 @@ function renderProblems(result: CompileResult) {
     ? `${errors} error${errors === 1 ? '' : 's'}, ${result.problems.length - errors} warning${result.problems.length - errors === 1 ? '' : 's'}`
     : 'No problems';
   box.hidden = result.problems.length === 0 && result.ok;
+  box.classList.toggle('has-errors', errors > 0); // keeps errors noticeable while collapsed
 }
 
 function problemRow(p: Problem) {
@@ -440,6 +593,7 @@ function problemRow(p: Problem) {
   li.append(icon, loc, msg);
   if (p.file && TEXT_EXT.test(p.file) && project.tree.some((e) => e.path === p.file)) {
     li.onclick = async () => {
+      ensureEditorVisible();
       await openFile(p.file!);
       if (p.line) goToLine(view, p.line);
     };
@@ -447,7 +601,26 @@ function problemRow(p: Problem) {
   return li;
 }
 
-$('log-toggle').onclick = () => { $('raw-log').hidden = !$('raw-log').hidden; };
+$('log-toggle').onclick = () => {
+  if (problemsCollapsed) setProblemsCollapsed(false);
+  $('raw-log').hidden = !$('raw-log').hidden;
+};
+
+// The problems/log panel can be collapsed to its one-line summary (remembered).
+let problemsCollapsed = store.get('problems-collapsed') === '1';
+function setProblemsCollapsed(collapsed: boolean) {
+  problemsCollapsed = collapsed;
+  store.set('problems-collapsed', collapsed ? '1' : '0');
+  $('problems').classList.toggle('collapsed', collapsed);
+  const t = $('problems-toggle');
+  t.textContent = collapsed ? '▸ Show' : '▾ Hide';
+  t.title = collapsed ? 'Show the problems list' : 'Hide the problems list';
+  t.setAttribute('aria-expanded', String(!collapsed));
+  view.requestMeasure();
+}
+$('problems-toggle').onclick = () => setProblemsCollapsed(!problemsCollapsed);
+$('problems-summary').onclick = () => setProblemsCollapsed(!problemsCollapsed);
+setProblemsCollapsed(problemsCollapsed);
 $('zoom-in').onclick = () => pdf.zoomIn();
 $('zoom-out').onclick = () => pdf.zoomOut();
 $('zoom-fit').onclick = () => pdf.fit();
@@ -473,7 +646,7 @@ $('mode-toggle').addEventListener('click', (e) => {
   if (!mode || !current) return;
   visualMode = mode === 'visual';
   store.set('mode', mode);
-  setModes(view, current.path, modes());
+  applyModes();
   renderModeToggle();
   view.focus();
 });
@@ -484,7 +657,7 @@ $('track-toggle').onclick = () => {
   if (!current) return;
   tracking = !tracking;
   store.set(`track:${project.root}`, tracking ? '1' : '0');
-  setModes(view, current.path, modes());
+  applyModes();
   renderModeToggle();
   setStatus(tracking ? 'Track changes on: edits are recorded as \\added / \\deleted.' : 'Track changes off.');
   view.focus();
@@ -510,12 +683,39 @@ function applyCommentPrefs(p: CommentPrefs) {
   $('comment-btn').title = p.style === 'note'
     ? `Add a note \\${p.macro}{${p.initials || 'initials'}}{…} (⌘⌥M / Ctrl+Alt+M)`
     : 'Comment on the selection (⌘⌥M / Ctrl+Alt+M)';
-  if (macroChanged && current) setModes(view, current.path, modes());
+  if (macroChanged && current) applyModes();
   review.render();
 }
 review.onPrefsChange = applyCommentPrefs;
 
 window.addEventListener('review-notice', (e) => setStatus((e as CustomEvent<string>).detail, true));
+
+// ---------- layout: editor only / both / PDF only ----------
+
+type Layout = 'editor' | 'both' | 'pdf';
+let layout: Layout = (['editor', 'both', 'pdf'] as const).find((l) => l === store.get('layout')) ?? 'both';
+
+function setLayout(next: Layout) {
+  layout = next;
+  store.set('layout', next);
+  const el = $('layout');
+  el.classList.toggle('layout-editor', next === 'editor');
+  el.classList.toggle('layout-pdf', next === 'pdf');
+  for (const b of $('layout-toggle').querySelectorAll<HTMLButtonElement>('button')) {
+    b.setAttribute('aria-pressed', String(b.dataset.layout === next));
+  }
+  view.requestMeasure(); // the editor may have been hidden
+}
+/** Show the editor (switching from PDF-only), e.g. before jumping to a source line. */
+function ensureEditorVisible() { if (layout === 'pdf') setLayout('both'); }
+/** Show the PDF (switching from editor-only), e.g. for Find in PDF. */
+function ensurePdfVisible() { if (layout === 'editor') setLayout('both'); }
+
+$('layout-toggle').addEventListener('click', (e) => {
+  const l = (e.target as HTMLElement).closest('button')?.dataset.layout as Layout | undefined;
+  if (l) setLayout(l);
+});
+setLayout(layout);
 
 // ---------- layout: draggable splitter ----------
 
@@ -585,6 +785,7 @@ async function start() {
   };
   $<HTMLButtonElement>('compile-btn').disabled = !main;
   tracking = store.get(`track:${project.root}`) === '1';
+  try { collapsed = new Set(JSON.parse(store.get(`collapsed:${project.root}`) ?? '[]')); } catch { collapsed = new Set(); }
   try {
     const saved = JSON.parse(store.get(`comment-prefs:${project.root}`) ?? 'null');
     if (saved) commentPrefs = { ...commentPrefs, ...saved };

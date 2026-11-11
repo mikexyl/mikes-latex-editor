@@ -11,6 +11,7 @@ import {
   CommentWidget, ReviewActionsWidget, CommentFoldWidget, type TitleAuthor,
 } from './widgets.ts';
 import { parseTabular, TableWidget } from './table.ts';
+import { IncludeWidget } from './includes.ts';
 import { itemFromNode, noteMacroFacet } from '../review/model.ts';
 
 export const mouseDownEffect = StateEffect.define<boolean>();
@@ -201,6 +202,81 @@ function mathContainer(node: SyntaxNode): SyntaxNode | null {
     else if (p.name === 'EquationArrayEnvironment' && !env) env = p;
   }
   return env;
+}
+
+// ---------- paragraph flow ----------
+// LaTeX treats a single newline as a space; only blank lines (or \\, \par) end a paragraph. Visual
+// mode shows such "soft" line breaks as spaces, so paragraphs flow like in the PDF. These lines keep
+// their own line: they start something structural, or are line-oriented content.
+const STRUCT_LINE = /^\s*(?:%|\\\[|\\\]|\$\$|\\(?:begin|end|item|bibitem|(?:sub)*section|chapter|part|paragraph|subparagraph|caption|label|includegraphics|centering|maketitle|input|include|bibliography|bibliographystyle|newpage|clearpage|appendix|appendices|vspace|par|noindent|toprule|midrule|bottomrule|hline|title|author|date|documentclass|usepackage)\b)/;
+const HARD_END = /(?:\\\\(?:\s*\[[^\]]*\])?|\\par|\\newline|\\linebreak)\s*$/;
+const HAS_COMMENT = /(^|[^\\])%/;
+const LINE_ENVS = new Set([
+  'verbatim', 'lstlisting', 'minted', 'tabular', 'tabularx', 'tabular*', 'longtable', 'array', 'algorithmic',
+  'tikzpicture', 'equation', 'equation*', 'align', 'align*', 'gather', 'gather*', 'multline', 'multline*',
+  'eqnarray', 'eqnarray*', 'IEEEeqnarray', 'IEEEeqnarray*', 'displaymath', 'flalign', 'flalign*',
+]);
+const LINE_NODES = new Set(['EquationEnvironment', 'EquationArrayEnvironment', 'VerbatimEnvironment', 'TabularEnvironment', 'TikzPictureEnvironment']);
+
+/** Line numbers inside line-oriented content (display math, tables, pseudocode, verbatim). */
+function lineOrientedLines(state: EditorState, tree: Tree): Set<number> {
+  const lines = new Set<number>();
+  tree.iterate({
+    enter(n) {
+      const env = n.type.is('$Environment') ? envNameOf(n.node, state) : null;
+      const display = n.type.is('$MathContainer') && (n.name === 'BracketMath' || !!n.node.getChild('DisplayMath'));
+      if (LINE_NODES.has(n.name) || display || (env && LINE_ENVS.has(env))) {
+        for (let k = state.doc.lineAt(n.from).number, end = state.doc.lineAt(n.to).number; k <= end; k++) lines.add(k);
+        return false;
+      }
+    },
+  });
+  return lines;
+}
+
+/** Where the document body starts (after \begin{document}), or 0 for an included file. */
+function bodyStart(state: EditorState, tree: Tree): number {
+  let start = 0;
+  tree.iterate({
+    enter(n) {
+      if (n.name === 'DocumentEnvironment') { start = n.node.getChild('Content')?.from ?? n.to; return false; }
+      return n.name === 'LaTeX' || n.name === 'Text' || n.name === 'KnownEnvironment';
+    },
+  });
+  return start;
+}
+
+/** True if line n is ordinary paragraph text (it may flow into its neighbours). */
+function isProseLine(state: EditorState, n: number, excluded: Set<number>, body: number): boolean {
+  const line = state.doc.line(n);
+  return line.from >= body && !!line.text.trim() && !excluded.has(n) && !STRUCT_LINE.test(line.text);
+}
+
+/**
+ * Enter in visual mode: a single newline would be invisible (it flows into a space), so inside a
+ * paragraph Enter starts a new paragraph (a blank line), like a word processor. Elsewhere it does
+ * the normal thing.
+ */
+export function enterNewParagraph(view: EditorView): boolean {
+  const { state } = view;
+  const r = state.selection.main;
+  if (!r.empty) return false;
+  const tree = syntaxTree(state);
+  const n = state.doc.lineAt(r.head).number;
+  if (!isProseLine(state, n, lineOrientedLines(state, tree), bodyStart(state, tree))) return false;
+  // Swallow spaces around the cursor so neither paragraph keeps a stray one at its edge.
+  const line = state.doc.line(n);
+  let from = r.head;
+  let to = r.head;
+  while (from > line.from && state.sliceDoc(from - 1, from) === ' ') from--;
+  while (to < line.to && state.sliceDoc(to, to + 1) === ' ') to++;
+  view.dispatch({
+    changes: { from, to, insert: '\n\n' },
+    selection: { anchor: from + 2 },
+    scrollIntoView: true,
+    userEvent: 'input',
+  });
+  return true;
 }
 
 type Built = { atomic: DecorationSet; marks: DecorationSet };
@@ -502,6 +578,10 @@ function build(state: EditorState, tree: Tree): Built {
         const m = /\{([^}]*)\}/.exec(state.sliceDoc(node.from, node.to));
         const file = m?.[1].trim() ?? '';
         const path = /\.\w+$/.test(file) ? file : `${file}.tex`;
+        // On its own line: show the included file's content right below, as a nested editor.
+        if (file && aloneOnLines(state, node)) {
+          atomic.push(Decoration.widget({ widget: new IncludeWidget(path), block: true, side: 1 }).range(doc.lineAt(node.to).to));
+        }
         return chip('file', `↪ ${file}`, '', path);
       }
       if (name === 'BibliographyCommand') return chip('file', `Bibliography: ${argText(node.lastChild)}`);
@@ -666,6 +746,35 @@ function build(state: EditorState, tree: Tree): Built {
       }
     }
     n = m;
+  }
+
+  // Flow paragraphs: show soft line breaks (single newlines between prose lines) as spaces.
+  {
+    const excluded = lineOrientedLines(state, tree);
+    const body = Math.max(bodyStart(state, tree), (preamble as { to: number } | null)?.to ?? 0);
+    const blockLines = new Set<number>();
+    const inline: { from: number; to: number }[] = [];
+    for (const r of atomic) {
+      if (r.value.spec.block) {
+        for (let k = doc.lineAt(r.from).number, end = doc.lineAt(r.to).number; k <= end; k++) blockLines.add(k);
+      } else if (r.to > r.from) inline.push({ from: r.from, to: r.to });
+    }
+    inline.sort((a, b) => a.from - b.from);
+    let j = 0;
+    const firstLine = doc.lineAt(Math.min(body, doc.length)).number;
+    for (let n = firstLine; n < doc.lines; n++) {
+      if (blockLines.has(n) || blockLines.has(n + 1)) continue;
+      if (!isProseLine(state, n, excluded, body) || !isProseLine(state, n + 1, excluded, body)) continue;
+      const a = doc.line(n);
+      const b = doc.line(n + 1);
+      if (HARD_END.test(a.text) || HAS_COMMENT.test(a.text)) continue;
+      // Skip if the line break is already inside something replaced (e.g. inline math spanning lines).
+      while (j < inline.length && inline[j].to <= a.to) j++;
+      if (j < inline.length && inline[j].from <= a.to) continue;
+      const from = a.from + a.text.trimEnd().length;
+      const to = b.from + (b.text.length - b.text.trimStart().length);
+      atomic.push(Decoration.replace({ widget: new TextWidget(' ', 'vc-softbreak') }).range(from, to));
+    }
   }
 
   // The preamble collapses to a bar until the cursor enters it.

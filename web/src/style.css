@@ -541,3 +541,44 @@ button.project-name:hover { border-color: var(--border); background: var(--hover
 .pd-dir-name { font-family: var(--mono); font-size: 12.5px; }
 .pd-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
 .pd-note { color: var(--muted); font-size: 12px; }
+
+/* ---------- layout switch ---------- */
+.topbar .status { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.layout.layout-editor, .layout.layout-pdf { grid-template-columns: var(--files-w) minmax(0, 1fr); }
+.layout.layout-editor .splitter, .layout.layout-editor .pdf-pane { display: none; }
+.layout.layout-pdf .splitter, .layout.layout-pdf .editor-pane { display: none; }
+@media (max-width: 800px) {
+  .layout.layout-editor, .layout.layout-pdf { grid-template-columns: 1fr; }
+  .layout.layout-pdf .pdf-pane { display: flex; }
+}
+
+/* ---------- file tree folding ---------- */
+.files .item.dir { cursor: pointer; }
+.files .item.dir:hover { background: var(--hover); }
+.files .item .caret { display: inline-block; width: 12px; color: var(--muted); font-size: 9px; transform: translateY(-1px); }
+/* Editor-only on a wide screen: center the text column. */
+.layout.layout-editor .cm-visual .cm-content { margin-inline: auto; }
+
+/* ---------- \input files inline (nested editors) ---------- */
+.vc-include { padding: 2px 0 6px; contain: inline-size; }
+.vc-include-body { border-left: 3px solid #e8dcc6; padding-left: 12px; }
+.vc-include-message { color: var(--muted); font: 12px var(--sans); padding: 2px 0 2px 12px; }
+.vc-include-header {
+  display: flex; align-items: center; gap: 8px;
+  font: 11px/1.6 var(--mono); color: #7a5a24;
+}
+.vc-include-header .link { font-size: 11px; }
+/* Styled through the container: CodeMirror manages the nested editor's own class list. */
+.vc-include-wrapper > .cm-editor { height: auto !important; background: transparent; }
+.vc-include-wrapper > .cm-editor .cm-scroller { overflow: visible !important; }
+.vc-include-wrapper > .cm-editor .cm-gutters { display: none; }
+.vc-include-wrapper > .cm-editor .cm-content { padding: 0 !important; max-width: none !important; margin: 0 !important; }
+.vc-include-wrapper > .cm-editor.cm-focused { outline: none; }
+.vc-include-wrapper > .cm-editor .cm-activeLine { background: transparent; }
+
+/* Problems panel: collapsible to its summary line */
+.problems.collapsed ul, .problems.collapsed pre { display: none; }
+.problems.collapsed .pane-header { border-bottom: none; }
+button.problems-summary { color: inherit; padding: 0; font: inherit; }
+button.problems-summary:hover { text-decoration: none; color: var(--text); }
+.problems.has-errors button.problems-summary { color: var(--error); font-weight: 600; }

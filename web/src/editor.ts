@@ -6,7 +6,7 @@ import { EditorView, keymap } from '@codemirror/view';
 import { StreamLanguage } from '@codemirror/language';
 import { stex } from '@codemirror/legacy-modes/mode/stex';
 import { latex } from './visual/language.ts';
-import { visualDecorations } from './visual/decorations.ts';
+import { visualDecorations, enterNewParagraph } from './visual/decorations.ts';
 import { reviewHighlight } from './review/highlight.ts';
 import { trackChanges } from './review/track.ts';
 import { addComment } from './review/commands.ts';
@@ -30,7 +30,12 @@ export type EditorHooks = {
 const visualCompartment = new Compartment();
 const trackCompartment = new Compartment();
 const noteCompartment = new Compartment();
-const visualExtensions: Extension = [visualDecorations, EditorView.editorAttributes.of({ class: 'cm-visual' })];
+const visualExtensions: Extension = [
+  visualDecorations,
+  EditorView.editorAttributes.of({ class: 'cm-visual' }),
+  // Paragraphs flow in visual mode, so Enter inside one starts a new paragraph.
+  Prec.high(keymap.of([{ key: 'Enter', run: enterNewParagraph }])),
+];
 
 export const supportsVisual = (path: string) => /\.(tex|ltx)$/i.test(path);
 

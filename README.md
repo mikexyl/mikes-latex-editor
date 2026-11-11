@@ -85,6 +85,18 @@ web/src/visual/     visual mode: language.ts (parser + highlighting), decoration
 The `.tex` source is never rewritten; visual mode only decorates it. Whatever the cursor touches is
 shown as source, so clicking a construct reveals its LaTeX for editing.
 
+Files pulled in with `\input`/`\include` (on their own line) are shown inline below that line as
+editable nested editors, so the paper reads as one document; edits there are saved to the included
+file. Use *Open file* in the inline header (or ⌘/Ctrl+click the chip) to open it on its own.
+Find in PDF and double-clicking the PDF work inside inline files too.
+
+Paragraphs flow like in the PDF: a single line break in the source is shown as a space (LaTeX
+treats it as one), so only blank lines, `\\` and structural lines (headings, `\item`, `\begin`,
+math, tables, pseudocode, comments) start a new line. Pressing Enter inside a paragraph starts a new
+paragraph (inserts a blank line); use Source mode to add a plain line break. The exact line breaks
+of the PDF depend on TeX's fonts, column width and hyphenation, so the editor wraps to its own
+width instead.
+
 - Preamble collapses to a bar; `\maketitle` renders the title, authors and date
 - Section headings, bold/italic/underline/etc., links, footnotes
 - Inline and display math via KaTeX, using the document's `\newcommand`/`\DeclareMathOperator`

@@ -69,8 +69,8 @@ async function runLatexmk(root: string, main: string, outDir: string, env: NodeJ
     `-jobname=${jobname}`, '-usepretex', `-pretex=\\input{${rel(path.join(root, BUILD_DIR, FALLBACK_FILE))}}`,
     rel(path.join(root, main)),
   ];
-  const output = await new Promise<{ code: number | null; text: string }>((resolve) => {
-    const child = spawn('latexmk', args, { cwd, env: { ...process.env, ...env } });
+  const runOnce = (extra: string[]) => new Promise<{ code: number | null; text: string }>((resolve) => {
+    const child = spawn('latexmk', [...extra, ...args], { cwd, env: { ...process.env, ...env } });
     let text = '';
     child.stdout.on('data', (d) => (text += d));
     child.stderr.on('data', (d) => (text += d));
@@ -78,6 +78,13 @@ async function runLatexmk(root: string, main: string, outDir: string, env: NodeJ
     child.on('error', (err) => { clearTimeout(timer); resolve({ code: -1, text: text + `\n${err.message}\n` }); });
     child.on('close', (code) => { clearTimeout(timer); resolve({ code, text }); });
   });
+  let output = await runOnce([]);
+  // latexmk doesn't rerun after a failed compile if no source file changed, and just repeats the old
+  // error. But the cause may have been fixed outside the sources (a package installed, a figure
+  // added), so force one fresh run in that case.
+  if (output.code !== 0 && /gave an error in previous invocation|All targets .* are up-to-date/.test(output.text)) {
+    output = await runOnce(['-g']);
+  }
 
   const stem = path.basename(main).replace(/\.tex$/, '');
   const logPath = path.join(outAbs, `${stem}.log`);
@@ -117,7 +124,16 @@ export function parseLog(log: string, root: string, cwd: string = root): Problem
       continue;
     }
     if (l.startsWith('! ')) {
-      add({ level: 'error', file: null, line: null, message: l.slice(2).trim() });
+      let message = l.slice(2).trim();
+      // Smaller TeX installs (BasicTeX) lack many packages: say how to add the missing one.
+      // The TeX Live package is usually named like the file (exceptions exist; `tlmgr search
+      // --global --file <name>.sty` finds it).
+      const missing = /File `([^']+)\.(sty|cls)' not found/.exec(message);
+      if (missing) {
+        message += ` Missing LaTeX package "${missing[1]}". Install it with \`tlmgr --usermode install ${missing[1]}\``
+          + ` (no admin rights) or \`sudo tlmgr install ${missing[1]}\`, then compile again.`;
+      }
+      add({ level: 'error', file: null, line: null, message });
       continue;
     }
     const warn = /^(?:LaTeX|Package (\S+)) Warning: (.*)$/.exec(l);
