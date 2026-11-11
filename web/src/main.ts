@@ -718,6 +718,21 @@ $('layout-toggle').addEventListener('click', (e) => {
 });
 setLayout(layout);
 
+// ---------- file tree: show / hide ----------
+
+let filesHidden = store.get('files-hidden') === '1';
+function setFilesHidden(hidden: boolean) {
+  filesHidden = hidden;
+  store.set('files-hidden', hidden ? '1' : '0');
+  $('layout').classList.toggle('files-hidden', hidden);
+  const b = $('sidebar-toggle');
+  b.setAttribute('aria-pressed', String(!hidden));
+  b.title = hidden ? 'Show the file tree' : 'Hide the file tree';
+  view.requestMeasure();
+}
+$('sidebar-toggle').onclick = () => setFilesHidden(!filesHidden);
+setFilesHidden(filesHidden);
+
 // ---------- layout: draggable splitter ----------
 
 {

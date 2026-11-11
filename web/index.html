@@ -12,6 +12,13 @@
   </head>
   <body>
     <header class="topbar">
+      <button class="sidebar-toggle" id="sidebar-toggle" aria-pressed="true" aria-controls="files" title="Hide the file tree">
+        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+          <rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/>
+          <rect class="sidebar-pane" x="2.2" y="3.2" width="4" height="9.6" rx="1" fill="currentColor"/>
+          <line x1="6.5" y1="2.5" x2="6.5" y2="13.5" stroke="currentColor" stroke-width="1.3"/>
+        </svg>
+      </button>
       <button class="project-name" id="project-name" title="Switch project (⌘O / Ctrl+O)">…</button>
       <label class="main-select">Main <select id="main-select"></select></label>
       <button id="compile-btn" class="primary" title="Save all and compile (⌘S / Ctrl+S)">Compile</button>

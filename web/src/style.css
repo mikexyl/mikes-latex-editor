@@ -609,3 +609,11 @@ button.problems-summary:hover { text-decoration: none; color: var(--text); }
 .setting-presets button { flex: 1; padding: 2px 4px; font-size: 12px; }
 .setting-presets button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
 .setting-hint { color: var(--muted); font-size: 12px; margin: 8px 0 0; line-height: 1.4; }
+
+/* ---------- file tree show/hide ---------- */
+.sidebar-toggle { display: inline-flex; align-items: center; padding: 3px 5px; color: var(--muted); border-color: transparent; background: none; margin-left: -4px; }
+.sidebar-toggle:hover { color: var(--text); background: var(--hover); }
+.sidebar-toggle[aria-pressed="false"] .sidebar-pane { opacity: 0; }
+/* Keep the grid column (width 0) so the other panes keep their places. */
+.layout.files-hidden { --files-w: 0px; }
+.layout.files-hidden .files { visibility: hidden; overflow: hidden; border-right: none; padding: 0; }
