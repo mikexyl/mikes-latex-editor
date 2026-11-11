@@ -1,6 +1,7 @@
 import { EditorView } from '@codemirror/view';
 import type { EditorState, Text } from '@codemirror/state';
-import { api, ConflictError, type Project, type CompileResult, type Problem } from './api.ts';
+import { initProjectPicker } from './projects.ts';
+import { api, setProjectRoot, ConflictError, type Project, type CompileResult, type Problem } from './api.ts';
 import { editorExtensions, createState, goToLine, setModes, supportsVisual, type Modes } from './editor.ts';
 import { ReviewPanel } from './review/panel.ts';
 import { addComment, setCommentPrefs, type CommentPrefs } from './review/commands.ts';
@@ -551,9 +552,23 @@ window.addEventListener('beforeunload', (e) => {
   }
 });
 
+initProjectPicker({ beforeSwitch: saveAll, setStatus });
+
+// Another window switched this server to a different project: this page's files are stale.
+window.addEventListener('project-switched', (e) => {
+  const other = (e as CustomEvent<string>).detail;
+  $('switched-text').textContent = `The editor was switched to another project${other ? ` (${other})` : ''} in another window. Unsaved edits here can't be saved.`;
+  $('switched-banner').hidden = false;
+});
+$('switched-reload').onclick = () => location.reload();
+
+// Keep-alive for the background server's idle shutdown (see `--idle-exit`).
+setInterval(() => { fetch('/api/ping').catch(() => {}); }, 30_000);
+
 async function start() {
   project = await api.project();
-  $('project-name').textContent = project.name;
+  setProjectRoot(project.root);
+  $('project-name').textContent = `${project.name} ▾`;
   $('project-name').title = project.root;
 
   const select = $<HTMLSelectElement>('main-select');

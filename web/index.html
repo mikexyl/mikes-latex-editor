@@ -4,11 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>LaTeX Editor</title>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#2f6f4f" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
     <header class="topbar">
-      <span class="project-name" id="project-name">…</span>
+      <button class="project-name" id="project-name" title="Switch project (⌘O / Ctrl+O)">…</button>
       <label class="main-select">Main <select id="main-select"></select></label>
       <button id="compile-btn" class="primary" title="Save all and compile (⌘S / Ctrl+S)">Compile</button>
       <label class="compare-select" title="Show what changed since a git commit">Compare with
@@ -16,6 +20,36 @@
       </label>
       <span class="status" id="status"></span>
     </header>
+
+    <div class="banner" id="switched-banner" hidden>
+      <span id="switched-text"></span>
+      <button id="switched-reload">Reload</button>
+    </div>
+
+    <dialog class="project-dialog" id="project-dialog" aria-labelledby="project-dialog-title">
+      <div class="pd-header">
+        <h2 id="project-dialog-title">Open project</h2>
+        <button class="link" id="pd-close" aria-label="Close">✕</button>
+      </div>
+      <section class="pd-section">
+        <h3>Recent</h3>
+        <ul class="pd-recent" id="pd-recent"></ul>
+      </section>
+      <section class="pd-section">
+        <h3>Open folder</h3>
+        <form class="pd-path" id="pd-path-form">
+          <input id="pd-path" type="text" spellcheck="false" autocomplete="off" aria-label="Folder path" />
+          <button type="submit">Go</button>
+          <button type="button" id="pd-up" title="Parent folder">↑</button>
+          <button type="button" id="pd-home" title="Home folder">~</button>
+        </form>
+        <ul class="pd-dirs" id="pd-dirs"></ul>
+        <div class="pd-footer">
+          <span class="pd-note" id="pd-note"></span>
+          <button class="primary" id="pd-open">Open this folder</button>
+        </div>
+      </section>
+    </dialog>
 
     <div class="banner" id="conflict" hidden>
       <span id="conflict-text"></span>

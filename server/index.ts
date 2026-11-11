@@ -1,5 +1,6 @@
-// Local server: serves the editor UI and a small API over one LaTeX project folder.
-// Usage: npm run dev -- /path/to/project [--port 5480]
+// Local server: serves the editor UI and a small API over one LaTeX project folder at a time.
+// Usage: npm run dev -- [/path/to/project] [--port 5480] [--idle-exit SECONDS]
+// Without a path it reopens the last project (or the bundled sample); the UI can switch projects.
 import express from 'express';
 import http from 'node:http';
 import { createRequire } from 'node:module';
@@ -9,12 +10,18 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { compile, BUILD_DIR, pdfPathFor } from './compile.ts';
 import { synctexForward, synctexBackward, gitLog, gitShow, buildDiff, diffPdfPath } from './tools.ts';
+import { addRecent, removeRecent, listRecent, lastProject, listFolder, checkProjectDir, expandPath } from './projects.ts';
 
 const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
 const portFlag = argv.indexOf('--port');
 const portArg = portFlag >= 0 ? argv.splice(portFlag, 2)[1] : undefined;
-const root = path.resolve(argv[0] ?? process.env.PROJECT_DIR ?? path.join(appDir, 'examples/sample'));
+const idleFlag = argv.indexOf('--idle-exit');
+// Exit after this many seconds without any editor window (the app launcher uses this; 0 = never).
+const IDLE_EXIT_S = idleFlag >= 0 ? Number(argv.splice(idleFlag, 2)[1]) || 0 : 0;
+const initial = argv[0] ?? process.env.PROJECT_DIR;
+/** The open project folder. Switched from the UI via POST /api/projects/open. */
+let root = path.resolve(initial ? expandPath(initial) : (await lastProject()) ?? path.join(appDir, 'examples/sample'));
 const PORT = Number(portArg ?? process.env.PORT ?? 5480);
 const HOST = process.env.HOST ?? '127.0.0.1'; // local only by default: the API can write files
 const isProd = process.env.NODE_ENV === 'production';
@@ -23,6 +30,7 @@ if (!existsSync(root)) {
   console.error(`Project folder not found: ${root}`);
   process.exit(1);
 }
+await addRecent(root).catch(() => {});
 
 const IGNORED = new Set(['.git', 'node_modules', BUILD_DIR, '.DS_Store']);
 
@@ -70,11 +78,80 @@ async function findMainCandidates(tree: Entry[]): Promise<string[]> {
 }
 
 const app = express();
+
+// Only answer requests addressed to this machine. A web page can't reach the API from another site
+// anyway (the browser blocks it), but checking Host also defeats DNS-rebinding tricks.
+const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
+app.use((req, res, next) => {
+  const host = (req.headers.host ?? '').replace(/:\d+$/, '');
+  if (HOST !== '127.0.0.1' && HOST !== 'localhost') return next(); // deliberately exposed
+  if (!LOCAL_HOSTS.has(host)) { res.status(403).send('forbidden'); return; }
+  next();
+});
+
+// Idle shutdown: open editor windows ping every 30 s; with none for IDLE_EXIT_S, exit.
+let lastSeen = Date.now();
+app.use('/api', (_req, _res, next) => { lastSeen = Date.now(); next(); });
+if (IDLE_EXIT_S > 0) {
+  setInterval(() => {
+    if (Date.now() - lastSeen > IDLE_EXIT_S * 1000) {
+      console.log(`No editor window for ${IDLE_EXIT_S}s, exiting.`);
+      process.exit(0);
+    }
+  }, 15_000).unref();
+}
+
 app.use(express.text({ limit: '50mb', type: 'text/plain' }));
 app.use(express.json());
 
 const wrap = (fn: express.RequestHandler): express.RequestHandler => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
+
+// Requests made for one project must not land in another after a switch (e.g. from another tab
+// or window): the client sends the root it loaded, and anything sent for a different one is
+// refused, so it can't save a file into the wrong project.
+app.use('/api', (req, res, next) => {
+  const expected = req.get('X-Project-Root');
+  if (expected !== undefined && expected !== root && !req.path.startsWith('/projects') && !req.path.startsWith('/fs')) {
+    res.status(409).json({ error: 'project switched', root });
+    return;
+  }
+  next();
+});
+
+app.get('/api/ping', (_req, res) => { res.json({ ok: true }); });
+
+// Stop the server (`latex-editor stop`). JSON-only, so a plain cross-site form/POST can't trigger it.
+app.post('/api/shutdown', (req, res) => {
+  if (!req.is('application/json')) { res.status(415).json({ error: 'expected JSON' }); return; }
+  res.json({ ok: true });
+  setTimeout(() => process.exit(0), 100);
+});
+
+// ---- projects: recent list, open, folder browsing ----
+app.get('/api/projects', wrap(async (_req, res) => {
+  res.json({ current: root, recent: await listRecent() });
+}));
+
+app.post('/api/projects/open', wrap(async (req, res) => {
+  let dir: string;
+  try { dir = checkProjectDir(String(req.body?.path ?? '')); }
+  catch (e) { throw new HttpError(400, (e as Error).message); }
+  root = dir;
+  await addRecent(dir);
+  console.log(`Project:      ${root}`);
+  res.json({ root });
+}));
+
+app.post('/api/projects/forget', wrap(async (req, res) => {
+  await removeRecent(String(req.body?.path ?? ''));
+  res.json({ recent: await listRecent() });
+}));
+
+app.get('/api/fs/list', wrap(async (req, res) => {
+  try { res.json(await listFolder(String(req.query.path ?? '~'))); }
+  catch (e) { throw new HttpError(400, (e as Error).message); }
+}));
 
 app.get('/api/project', wrap(async (_req, res) => {
   const tree = await listTree();
