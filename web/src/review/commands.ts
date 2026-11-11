@@ -70,3 +70,45 @@ export function addComment(view: EditorView): boolean {
   view.focus();
   return true;
 }
+
+/**
+ * Suggest an edit to the selection: it becomes \replaced{<new>}{<old>} with the new text selected,
+ * so typing replaces it (typing there is your own suggestion, never tracked again).
+ */
+export function suggestEdit(view: EditorView): boolean {
+  const { state } = view;
+  const r = state.selection.main;
+  if (r.empty) return false;
+  const why = unsafeRange(state, r.from, r.to);
+  if (why) return fail(why);
+  const text = state.sliceDoc(r.from, r.to);
+  const start = r.from + '\\replaced{'.length;
+  view.dispatch({
+    changes: { from: r.from, to: r.to, insert: `\\replaced{${text}}{${text}}` },
+    selection: EditorSelection.range(start, start + text.length),
+    annotations: reviewAction.of(true),
+    userEvent: 'review.suggest',
+    scrollIntoView: true,
+  });
+  view.focus();
+  return true;
+}
+
+/** Mark the selection as deleted (\deleted{…}), as tracked changes would. */
+export function suggestDeletion(view: EditorView): boolean {
+  const { state } = view;
+  const r = state.selection.main;
+  if (r.empty) return false;
+  const why = unsafeRange(state, r.from, r.to);
+  if (why) return fail(why);
+  const insert = `\\deleted{${state.sliceDoc(r.from, r.to)}}`;
+  view.dispatch({
+    changes: { from: r.from, to: r.to, insert },
+    selection: EditorSelection.cursor(r.from + insert.length),
+    annotations: reviewAction.of(true),
+    userEvent: 'review.delete',
+    scrollIntoView: true,
+  });
+  view.focus();
+  return true;
+}

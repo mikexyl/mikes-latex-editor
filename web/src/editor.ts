@@ -12,6 +12,7 @@ import { trackChanges } from './review/track.ts';
 import { addComment } from './review/commands.ts';
 import { compareExtension } from './compare/diff.ts';
 import { noteMacroFacet } from './review/model.ts';
+import { selectionToolbar } from './review/selection-toolbar.ts';
 
 const theme = EditorView.theme({
   '&': { height: '100%', fontSize: '14px' },
@@ -66,7 +67,7 @@ export function createState(path: string, doc: string, base: Extension[], modes:
     selection: EditorSelection.cursor(anchor),
     extensions: [
       ...base,
-      isTex ? [latex(), reviewHighlight] : StreamLanguage.define(stex),
+      isTex ? [latex(), reviewHighlight, selectionToolbar] : StreamLanguage.define(stex),
       visualCompartment.of(isTex && modes.visual ? visualExtensions : []),
       trackCompartment.of(isTex && modes.tracking ? trackChanges : []),
       noteCompartment.of(noteMacroFacet.of(modes.noteMacro)),

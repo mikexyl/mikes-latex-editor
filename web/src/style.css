@@ -668,3 +668,18 @@ body.zen .editor-pane { background: var(--panel); }
 }
 .zen-exit:hover, .zen-exit:focus-visible { opacity: 1; }
 .zen-exit[hidden] { display: none; }
+
+/* ---------- floating toolbar on a selection ---------- */
+.cm-tooltip.cm-tooltip-above:has(.rv-selbar), .cm-tooltip:has(> .rv-selbar) { border: none; background: transparent; }
+.rv-selbar {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.12);
+  font: 12px/1.3 var(--sans);
+}
+.rv-selbar-btn { border: none; background: none; padding: 3px 9px; border-radius: 5px; color: var(--text); font: inherit; cursor: pointer; }
+.rv-selbar-btn:hover { background: var(--hover); }

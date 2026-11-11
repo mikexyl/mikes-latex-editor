@@ -136,6 +136,9 @@ Review markup is stored in the `.tex` source using the
   or two-argument) and the comment style are under *Comment settings* in the review panel.
 - **Comment** in `changes` style (pick it in *Comment settings*): on a selection adds
   `\highlight[comment={…}]{…}`, otherwise `\comment{…}`.
+- **Selection toolbar:** select text and a small toolbar appears above it: *Comment* (as above),
+  *Suggest edit* (turns the selection into `\replaced{new}{old}` with the new text selected, so you
+  just type your version) and *Delete* (marks it `\deleted{…}`). These work with tracking on or off.
 - **Review panel** lists every change and comment in the open file with Accept / Reject /
   Resolve, plus Accept all / Reject all. The same buttons appear inline next to the change the
   cursor is in. Undo works for all of it.
