@@ -102,8 +102,10 @@ width instead.
 
 - Preamble collapses to a bar; `\maketitle` renders the title, authors and date
 - Section headings, bold/italic/underline/etc., links, footnotes
-- Inline and display math via KaTeX, using the document's `\newcommand`/`\DeclareMathOperator`
-  macros; editing display math shows a live preview underneath
+- Inline and display math via KaTeX, using `\newcommand`/`\DeclareMathOperator` macros from the
+  file itself and from the main file's preamble (plus macro files it `\input`s and local `.sty`
+  packages), so included sections render the paper's macros; editing display math shows a live
+  preview underneath
 - Lists with bullets/numbers and nesting; abstract, theorem-like, quote, figure environments
 - `\includegraphics` (PDF figures rendered with pdf.js, raster images directly)
 - Chips for `\cite`, `\ref`/`\eqref`, `\label`, `\input`/`\include` (⌘/Ctrl+click to open)

@@ -9,7 +9,7 @@
     "predev": "npm run grammar",
     "prebuild": "npm run grammar",
     "pretypecheck": "npm run grammar",
-    "test": "npm run grammar && tsx tests/track.test.ts",
+    "test": "npm run grammar && tsx tests/track.test.ts && tsx tests/macros.test.ts",
     "app": "node bin/latex-editor.mjs",
     "install-app": "node scripts/install-app.mjs",
     "uninstall-app": "node scripts/install-app.mjs --uninstall"

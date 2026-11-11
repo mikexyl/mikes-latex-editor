@@ -50,51 +50,5 @@ export function renderMath(el: HTMLElement, tex: string, display: boolean, macro
   }
 }
 
-// ---------- macro collection ----------
-
-const cache = new WeakMap<object, { key: string; macros: Macros }>();
-
-/** Reads a balanced {...} group starting at text[open] === '{'. Returns the inner text and end index. */
-function readGroup(text: string, open: number): { body: string; end: number } | null {
-  if (text[open] !== '{') return null;
-  let depth = 0;
-  for (let i = open; i < text.length; i++) {
-    const c = text[i];
-    if (c === '\\') { i++; continue; }
-    if (c === '{') depth++;
-    else if (c === '}' && --depth === 0) return { body: text.slice(open + 1, i), end: i + 1 };
-  }
-  return null;
-}
-
-export function collectMacros(text: string): Macros {
-  const src = text.replace(/(^|[^\\])%.*$/gm, '$1'); // drop comments
-  const macros: Macros = {};
-  const patterns: [RegExp, (m: RegExpExecArray, body: string) => void][] = [
-    [/\\(?:re|provide)?newcommand\*?\s*\{?\s*(\\[A-Za-z@]+)\s*\}?\s*(?:\[\d\])?\s*(?:\[[^\]]*\])?\s*(?=\{)/g,
-      (m, body) => { macros[m[1]] = body; }],
-    [/\\DeclareMathOperator(\*?)\s*\{\s*(\\[A-Za-z@]+)\s*\}\s*(?=\{)/g,
-      (m, body) => { macros[m[2]] = `\\operatorname${m[1]}{${body}}`; }],
-    [/\\def\s*(\\[A-Za-z@]+)\s*(?:#\d)*\s*(?=\{)/g,
-      (m, body) => { macros[m[1]] = body; }],
-  ];
-  for (const [re, add] of patterns) {
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(src))) {
-      const g = readGroup(src, re.lastIndex);
-      if (g) { add(m, g.body); re.lastIndex = g.end; }
-    }
-  }
-  return macros;
-}
-
-/** Macros for a document, cached per document version. `key` changes only when macros do. */
-export function macrosFor(doc: object, text: () => string): { key: string; macros: Macros } {
-  let hit = cache.get(doc);
-  if (!hit) {
-    const macros = collectMacros(text());
-    hit = { key: JSON.stringify(macros), macros };
-    cache.set(doc, hit);
-  }
-  return hit;
-}
+// Macro collection lives in macros.ts (no CSS import, so it can be unit-tested in Node).
+export { collectMacros, setProjectMacros, macrosFor } from './macros.ts';

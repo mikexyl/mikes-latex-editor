@@ -15,6 +15,8 @@ import { IncludeWidget } from './includes.ts';
 import { itemFromNode, noteMacroFacet } from '../review/model.ts';
 
 export const mouseDownEffect = StateEffect.define<boolean>();
+/** Re-render visual mode (e.g. the project's macros changed). */
+export const refreshVisual = StateEffect.define<null>();
 
 /** Environments whose \begin/\end lines become a label (or disappear, for lists). */
 const ENV_LABELS: Record<string, string> = {
@@ -820,7 +822,8 @@ const visualField = StateField.define<FieldValue>({
     if (stillParsing || (mousedown && !tr.docChanged)) {
       return { ...value, mousedown, atomic: value.atomic.map(tr.changes), marks: value.marks.map(tr.changes) };
     }
-    const macroChanged = tr.startState.facet(noteMacroFacet) !== tr.state.facet(noteMacroFacet);
+    const macroChanged = tr.startState.facet(noteMacroFacet) !== tr.state.facet(noteMacroFacet)
+      || tr.effects.some((e) => e.is(refreshVisual));
     if (tree !== value.tree || tr.selection || tr.docChanged || mouseReleased || macroChanged) {
       return { ...build(tr.state, tree), tree, mousedown };
     }

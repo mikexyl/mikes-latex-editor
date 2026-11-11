@@ -9,6 +9,8 @@ import { addComment, setCommentPrefs, type CommentPrefs } from './review/command
 import { compareField, setCompareBase } from './compare/diff.ts';
 import { setAssetBase } from './visual/widgets.ts';
 import { setIncludeHost, includeHeights } from './visual/includes.ts';
+import { collectMacros, setProjectMacros } from './visual/math.ts';
+import { refreshVisual } from './visual/decorations.ts';
 import { PdfViewer } from './pdf.ts';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -37,7 +39,7 @@ const extensions = editorExtensions({
     scheduleCompareStats();
     clearTimeout(autosaveTimer);
     // All open files, not just the current one: included files are edited inline too.
-    autosaveTimer = window.setTimeout(() => { void saveAll(); }, AUTOSAVE_MS);
+    autosaveTimer = window.setTimeout(() => { void saveAll().then(() => refreshProjectMacros()); }, AUTOSAVE_MS);
     view.requestMeasure(); // an inline included file may have changed height
   },
   onSave: () => void saveAllAndCompile(),
@@ -257,6 +259,37 @@ setIncludeHost({
 function applyModes() {
   if (current) setModes(view, current.path, modes());
   for (const [path, v] of nested) setModes(v, path, modes());
+}
+
+/**
+ * Math macros for the whole project: those defined in the main file's preamble, in files it
+ * \input-s there (e.g. macros.tex), and in local .sty packages it loads. Included sections render
+ * \SE, \R etc. with these.
+ */
+async function refreshProjectMacros() {
+  if (!main) return;
+  const read = async (path: string) => {
+    const f = open.get(path);
+    if (f) return liveState(f).doc.toString();
+    try { return (await api.read(path)).content; } catch { return ''; }
+  };
+  const mainText = await read(main);
+  const texts = [mainText];
+  const preamble = mainText.split(/\\begin\s*\{document\}/)[0].replace(/(^|[^\\])%.*$/gm, '$1');
+  for (const m of preamble.matchAll(/\\(?:input|include)\s*\{([^}]+)\}/g)) {
+    const p = resolveInclude(/\.\w+$/.test(m[1].trim()) ? m[1].trim() : `${m[1].trim()}.tex`);
+    if (p) texts.push(await read(p));
+  }
+  for (const m of preamble.matchAll(/\\usepackage\s*(?:\[[^\]]*\])?\s*\{([^}]+)\}/g)) {
+    for (const name of m[1].split(',')) {
+      const p = resolveInclude(`${name.trim()}.sty`);
+      if (p) texts.push(await read(p));
+    }
+  }
+  if (setProjectMacros(collectMacros(texts.join('\n')))) {
+    view.dispatch({ effects: refreshVisual.of(null) });
+    for (const v of nested.values()) v.dispatch({ effects: refreshVisual.of(null) });
+  }
 }
 
 /** The editor the user is working in: an inline included file if focused, else the main one. */
@@ -797,6 +830,7 @@ async function start() {
   select.onchange = () => {
     main = select.value;
     setAssetBase(mainDir());
+    void refreshProjectMacros();
     store.set(`main:${project.root}`, main);
     void saveAllAndCompile();
   };
@@ -811,6 +845,7 @@ async function start() {
 
   renderTree();
   void loadGitLog();
+  await refreshProjectMacros(); // before the first render, so included files' math is right
   const first = main || project.tree.find((e) => e.type === 'file' && TEXT_EXT.test(e.path))?.path;
   if (first) await openFile(first);
   if (main) await saveAllAndCompile();
