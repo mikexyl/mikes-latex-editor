@@ -90,6 +90,7 @@ editable nested editors, so the paper reads as one document; edits there are sav
 file. Use *Open file* in the inline header (or ⌘/Ctrl+click the chip) to open it on its own.
 Find in PDF and double-clicking the PDF work inside inline files too.
 
+**Zen** (top bar) hides everything but the text; press Esc or *Exit Zen* to come back.
 The text width of visual mode is adjustable under ⚙ Settings in the top bar (Narrow / Default /
 Wide / Full width, or any width with the slider).
 

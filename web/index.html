@@ -31,6 +31,12 @@
         <button data-layout="both" aria-pressed="true" title="Editor and PDF side by side">Both</button>
         <button data-layout="pdf" aria-pressed="false" title="PDF only">PDF</button>
       </div>
+      <button class="zen-btn" id="zen-btn" title="Zen mode: hide everything but the text (Esc to exit)">
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+          <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/>
+        </svg>
+        Zen
+      </button>
       <button class="settings-btn" id="settings-btn" aria-expanded="false" aria-controls="settings" title="Settings">⚙</button>
       <div class="settings-popover" id="settings" role="dialog" aria-label="Settings" hidden>
         <div class="settings-title">Settings</div>
@@ -140,6 +146,8 @@
         <div class="pdf" id="pdf"></div>
       </section>
     </main>
+
+    <button class="zen-exit" id="zen-exit" hidden title="Exit Zen mode (Esc)">Exit Zen</button>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -751,6 +751,26 @@ $('layout-toggle').addEventListener('click', (e) => {
 });
 setLayout(layout);
 
+// ---------- Zen mode: only the text ----------
+
+let zen = false;
+function setZen(on: boolean) {
+  zen = on;
+  document.body.classList.toggle('zen', on);
+  $('zen-exit').hidden = !on;
+  view.requestMeasure();
+  for (const v of nested.values()) v.requestMeasure();
+  view.focus();
+}
+$('zen-btn').onclick = () => setZen(true);
+$('zen-exit').onclick = () => setZen(false);
+// Esc leaves Zen mode, unless it's closing something else first (search panel, completion, dialog).
+window.addEventListener('keydown', (e) => {
+  if (!zen || e.key !== 'Escape' || e.defaultPrevented) return;
+  if (document.querySelector('.cm-panels, .cm-tooltip-autocomplete, dialog[open]')) return;
+  setZen(false);
+});
+
 // ---------- file tree: show / hide ----------
 
 let filesHidden = store.get('files-hidden') === '1';

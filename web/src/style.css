@@ -617,3 +617,54 @@ button.problems-summary:hover { text-decoration: none; color: var(--text); }
 /* Keep the grid column (width 0) so the other panes keep their places. */
 .layout.files-hidden { --files-w: 0px; }
 .layout.files-hidden .files { visibility: hidden; overflow: hidden; border-right: none; padding: 0; }
+
+/* ---------- calm chrome: neutral controls, so the page is the only thing with color ---------- */
+:root {
+  --track: #8f9a94;           /* tracking switch: muted gray-green, not alarm orange */
+  --active-bg: #e8e8e4;       /* selected segmented buttons, active file */
+  --active-text: var(--text);
+}
+button.primary { background: #eef2ef; border-color: #cdd8d1; color: #2c5843; }
+button.primary:hover { filter: none; background: #e4ebe6; }
+button.primary:disabled { opacity: 0.6; }
+.mode-toggle button[aria-pressed="true"],
+.setting-presets button[aria-pressed="true"] {
+  background: var(--active-bg); border-color: var(--border); color: var(--active-text); font-weight: 600;
+}
+.track-toggle[aria-pressed="true"] { color: var(--text); border-color: var(--border); }
+.track-toggle[aria-pressed="true"] .switch { background: var(--track); }
+.editor.tracking { box-shadow: inset 2px 0 0 rgb(143 154 148 / 0.45); }
+.badge { background: #e4e4e0; color: var(--muted); }
+.files .item.active { background: var(--active-bg); color: var(--active-text); }
+.files .item .dirty { color: var(--muted); }
+
+/* ---------- Zen mode ---------- */
+.zen-btn { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; color: var(--muted); }
+.zen-btn:hover { color: var(--text); }
+body.zen .topbar,
+body.zen .files,
+body.zen .splitter,
+body.zen .pdf-pane,
+body.zen .editor-pane > .pane-header,
+body.zen .compare-banner,
+body.zen .problems,
+body.zen .review { display: none !important; }
+body.zen .layout { grid-template-columns: minmax(0, 1fr) !important; }
+body.zen .layout .editor-pane { display: flex !important; }
+body.zen .editor .cm-gutters { display: none; }
+body.zen .editor.tracking { box-shadow: none; }
+body.zen .cm-visual .cm-content { margin-inline: auto; }
+body.zen .editor-pane { background: var(--panel); }
+.zen-exit {
+  position: fixed;
+  top: 10px;
+  right: 14px;
+  z-index: 30;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--panel);
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
+.zen-exit:hover, .zen-exit:focus-visible { opacity: 1; }
+.zen-exit[hidden] { display: none; }
