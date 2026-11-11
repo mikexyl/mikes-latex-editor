@@ -167,3 +167,9 @@ Review markup is stored in the `.tex` source using the
 2. ~~Visual mode: Lezer LaTeX grammar + decorations (sections, emphasis, math, cite/ref chips)~~
 3. ~~Review layer: tracked changes with accept/reject, comments~~
 4. ~~SyncTeX source ↔ PDF jumping, compare against a git revision (+ latexdiff PDF)~~
+
+## License
+
+AGPL-3.0 (see [LICENSE](LICENSE)). The LaTeX grammar in `web/src/lezer-latex/` comes from
+[Overleaf](https://github.com/overleaf/overleaf) and is licensed AGPL-3.0, so the editor as a whole
+is distributed under the same license.

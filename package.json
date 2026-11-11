@@ -40,5 +40,7 @@
   },
   "bin": {
     "latex-editor": "bin/latex-editor.mjs"
-  }
+  },
+  "license": "AGPL-3.0-only",
+  "description": "A local LaTeX editor for reviewing and revising papers, with an Overleaf-style visual mode"
 }
