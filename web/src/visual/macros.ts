@@ -4,6 +4,21 @@ export type Macros = Record<string, string>;
 
 const cache = new WeakMap<object, { key: string; macros: Macros }>();
 
+/**
+ * Definitions KaTeX lacks for commands papers commonly use inside math, e.g. algpseudocode's
+ * `$y \gets \Call{Answer}{r}$`. Typeset like the packages do (procedure names upright here, as
+ * KaTeX has no small caps). Documents' own definitions take priority.
+ */
+const BUILTIN: Macros = {
+  '\\Call': '\\operatorname{#1}\\left(#2\\right)',
+  '\\textproc': '\\operatorname{#1}',
+  '\\algorithmicand': '\\textbf{and}',
+  '\\algorithmicor': '\\textbf{or}',
+  '\\algorithmicnot': '\\textbf{not}',
+  '\\algorithmictrue': '\\textbf{true}',
+  '\\algorithmicfalse': '\\textbf{false}',
+};
+
 /** Reads a balanced {...} group starting at text[open] === '{'. Returns the inner text and end index. */
 function readGroup(text: string, open: number): { body: string; end: number } | null {
   if (text[open] !== '{') return null;
@@ -65,7 +80,7 @@ export function macrosFor(doc: object, text: () => string): { key: string; macro
   let hit = cache.get(doc);
   const key = `${projectKey}|${own.key}`;
   if (!hit || hit.key !== key) {
-    hit = { key, macros: { ...projectMacros, ...own.macros } };
+    hit = { key, macros: { ...BUILTIN, ...projectMacros, ...own.macros } };
     cache.set(doc, hit);
   }
   return hit;

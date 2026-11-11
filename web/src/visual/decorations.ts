@@ -682,6 +682,18 @@ function build(state: EditorState, tree: Tree): Built {
           if (bc.from > bo.to) marks.push(Decoration.mark({ class: 'vc-parstart-rest' }).range(bo.to, bc.from));
           return;
         }
+        // algpseudocode's \Call{Name}{args} in text: Name(args), with the name in small caps.
+        if (cmd === 'Call' && args.length === 2) {
+          if (touches(node.from, node.to)) return;
+          const [a, b] = args;
+          const ao = brace(a, 'OpenBrace'), ac = brace(a, 'CloseBrace'), bo = brace(b, 'OpenBrace'), bc = brace(b, 'CloseBrace');
+          if (!ao || !ac || !bo || !bc) return;
+          hide(node.from, ao.to);
+          atomic.push(Decoration.replace({ widget: new TextWidget('(', 'vc-symbol') }).range(ac.from, bo.to));
+          atomic.push(Decoration.replace({ widget: new TextWidget(')', 'vc-symbol') }).range(bc.from, node.to));
+          if (ac.from > ao.to) marks.push(Decoration.mark({ class: 'vc-fmt-sc' }).range(ao.to, ac.from));
+          return;
+        }
         if (cmd === 'bibitem' && args.length) {
           if (!touches(node.from, node.to)) {
             atomic.push(Decoration.replace({ widget: new ChipWidget('cite', `[${argText(args[args.length - 1])}]`) }).range(node.from, node.to));

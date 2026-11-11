@@ -37,5 +37,12 @@ const ownDoc = {};
 const own = macrosFor(ownDoc, () => String.raw`\renewcommand{\R}{\mathbf{R}}`);
 check("a file's own definition wins", own.macros['\\R'], '\\mathbf{R}');
 
+// algpseudocode commands inside math (built-in definitions)
+const algoDoc = {};
+const algo = macrosFor(algoDoc, () => '');
+check('\\Call inside math renders', renders(String.raw`\mathcal Y'\gets\Call{Answer}{r,\textit{stage}}`, algo.macros), true);
+check('\\textproc inside math renders', renders(String.raw`\textproc{Merge}(a, b)`, algo.macros), true);
+const overrideDoc = {};
+check('a document can redefine \\Call', macrosFor(overrideDoc, () => String.raw`\newcommand{\Call}[2]{#1[#2]}`).macros['\\Call'], '#1[#2]');
 console.log(fail ? `${fail} FAILED` : 'all passed');
 if (fail) process.exit(1);
