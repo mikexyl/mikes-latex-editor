@@ -3,11 +3,16 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { texEnv } from './tex.ts';
 
 export const BUILD_DIR = '.latex-editor-build';
 const TIMEOUT_MS = 180_000;
 
-export type Problem = { level: 'error' | 'warning'; file: string | null; line: number | null; message: string };
+export type Problem = {
+  level: 'error' | 'warning'; file: string | null; line: number | null; message: string;
+  /** A LaTeX file (package or class) that wasn't found, e.g. `capt-of.sty`. */
+  missingFile?: string;
+};
 export type CompileResult = { ok: boolean; pdf: boolean; durationMs: number; problems: Problem[]; output: string };
 
 // One compile at a time per project; a request that arrives mid-compile waits for it, then runs.
@@ -70,7 +75,7 @@ async function runLatexmk(root: string, main: string, outDir: string, env: NodeJ
     rel(path.join(root, main)),
   ];
   const runOnce = (extra: string[]) => new Promise<{ code: number | null; text: string }>((resolve) => {
-    const child = spawn('latexmk', [...extra, ...args], { cwd, env: { ...process.env, ...env } });
+    const child = spawn('latexmk', [...extra, ...args], { cwd, env: { ...texEnv(), ...env } });
     let text = '';
     child.stdout.on('data', (d) => (text += d));
     child.stderr.on('data', (d) => (text += d));
@@ -107,6 +112,8 @@ function normalize(file: string, root: string, cwd: string): string {
   return path.relative(root, abs).split(path.sep).join('/');
 }
 
+const MISSING = /File `([^']+)\.(sty|cls)' not found/;
+
 export function parseLog(log: string, root: string, cwd: string = root): Problem[] {
   const problems: Problem[] = [];
   const seen = new Set<string>();
@@ -120,18 +127,21 @@ export function parseLog(log: string, root: string, cwd: string = root): Problem
     // -file-line-error format: ./sections/intro.tex:12: Undefined control sequence.
     const err = /^(\.?\/?[^:\s][^:]*\.(?:tex|sty|cls|bbl|aux)):(\d+): (.*)$/.exec(l);
     if (err) {
-      add({ level: 'error', file: normalize(err[1], root, cwd), line: Number(err[2]), message: err[3].trim() });
+      const missing = MISSING.exec(err[3]);
+      add({
+        level: 'error', file: normalize(err[1], root, cwd), line: Number(err[2]), message: err[3].trim(),
+        ...(missing ? { missingFile: `${missing[1]}.${missing[2]}` } : {}),
+      });
       continue;
     }
     if (l.startsWith('! ')) {
-      let message = l.slice(2).trim();
-      // Smaller TeX installs (BasicTeX) lack many packages: say how to add the missing one.
-      // The TeX Live package is usually named like the file (exceptions exist; `tlmgr search
-      // --global --file <name>.sty` finds it).
-      const missing = /File `([^']+)\.(sty|cls)' not found/.exec(message);
+      const message = l.slice(2).trim();
+      // Smaller TeX installs lack many packages. The UI offers to install the missing one (or
+      // says how). The TeX Live package is usually named like the file, but not always.
+      const missing = MISSING.exec(message);
       if (missing) {
-        message += ` Missing LaTeX package "${missing[1]}". Install it with \`tlmgr --usermode install ${missing[1]}\``
-          + ` (no admin rights) or \`sudo tlmgr install ${missing[1]}\`, then compile again.`;
+        add({ level: 'error', file: null, line: null, message: `Missing LaTeX package "${missing[1]}" (${missing[1]}.${missing[2]} not found).`, missingFile: `${missing[1]}.${missing[2]}` });
+        continue;
       }
       add({ level: 'error', file: null, line: null, message });
       continue;

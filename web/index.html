@@ -54,6 +54,14 @@
           </div>
           <p class="setting-hint">How wide paragraphs are in visual mode. Source mode and the PDF aren't affected.</p>
         </section>
+        <section class="setting" id="set-tex">
+          <div class="setting-row">
+            <span>TeX</span>
+            <span class="setting-value" id="set-tex-version"></span>
+          </div>
+          <p class="setting-hint" id="set-tex-detail"></p>
+          <button id="set-tex-manage" hidden>Manage TeX packages…</button>
+        </section>
       </div>
     </header>
 
@@ -72,7 +80,7 @@
         <ul class="pd-recent" id="pd-recent"></ul>
       </section>
       <section class="pd-section">
-        <h3>Open folder</h3>
+        <h3>Open folder <button class="link pd-choose" id="pd-choose" hidden>Choose with Finder…</button></h3>
         <form class="pd-path" id="pd-path-form">
           <input id="pd-path" type="text" spellcheck="false" autocomplete="off" aria-label="Folder path" />
           <button type="submit">Go</button>
@@ -83,6 +91,36 @@
         <div class="pd-footer">
           <span class="pd-note" id="pd-note"></span>
           <button class="primary" id="pd-open">Open this folder</button>
+        </div>
+      </section>
+    </dialog>
+
+    <dialog class="project-dialog tex-dialog" id="tex-dialog" aria-labelledby="tex-dialog-title">
+      <div class="pd-header">
+        <h2 id="tex-dialog-title">TeX packages</h2>
+        <button class="link" id="tx-close" aria-label="Close">✕</button>
+      </div>
+      <section class="pd-section">
+        <p class="tx-status" id="tx-status"></p>
+        <div class="tx-mode" id="tx-mode" role="radiogroup" aria-label="Which TeX to use">
+          <label><input type="radio" name="tx-mode" value="bundled" /> TeX bundled with the app <span class="tx-sub">isolated; packages managed here</span></label>
+          <label><input type="radio" name="tx-mode" value="system" /> System TeX <span class="tx-sub" id="tx-system-path"></span></label>
+        </div>
+      </section>
+      <section class="pd-section" id="tx-manage">
+        <form class="pd-path" id="tx-search-form">
+          <input id="tx-search" type="search" spellcheck="false" autocomplete="off" placeholder="Search packages, e.g. tcolorbox" aria-label="Search packages" />
+          <button type="submit">Search</button>
+        </form>
+        <h3 id="tx-list-title">Installed by you</h3>
+        <ul class="pd-dirs tx-list" id="tx-list"></ul>
+        <pre class="tx-output" id="tx-output" hidden></pre>
+        <div class="pd-footer">
+          <span class="pd-note" id="tx-note"></span>
+          <span class="tx-actions">
+            <button id="tx-reset" title="Remove every package installed from the app">Reset…</button>
+            <button id="tx-update" title="Update the packages installed from the app">Update all</button>
+          </span>
         </div>
       </section>
     </dialog>

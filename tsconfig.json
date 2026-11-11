@@ -19,6 +19,7 @@
     "isolatedModules": true
   },
   "include": [
+    "electron",
     "server",
     "web/src",
     "vite.config.ts",

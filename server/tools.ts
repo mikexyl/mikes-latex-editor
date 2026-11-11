@@ -3,13 +3,14 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { texEnv } from './tex.ts';
 import { BUILD_DIR, compileFile, pdfPathFor, type CompileResult } from './compile.ts';
 
 type Run = { code: number | null; stdout: string; stderr: string };
 
 export function run(cmd: string, args: string[], opts: { cwd: string; env?: NodeJS.ProcessEnv; timeoutMs?: number; stdoutFile?: string }): Promise<Run> {
   return new Promise((resolve) => {
-    const child = spawn(cmd, args, { cwd: opts.cwd, env: opts.env ?? process.env });
+    const child = spawn(cmd, args, { cwd: opts.cwd, env: opts.env ?? texEnv() });
     let stdout = '';
     let stderr = '';
     child.stdout.on('data', (d) => (stdout += d));

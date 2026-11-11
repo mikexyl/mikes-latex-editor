@@ -696,3 +696,24 @@ body.zen .editor-pane { background: var(--panel); }
 }
 .back-to-main:hover { background: var(--hover); }
 .back-to-main[hidden] { display: none; }
+
+/* ---------- desktop app & TeX packages ---------- */
+.pd-choose { font-size: 11px; text-transform: none; letter-spacing: 0; margin-left: 8px; }
+#set-tex-manage { margin-top: 8px; width: 100%; }
+.tex-dialog { width: min(680px, calc(100vw - 32px)); }
+.tx-status { margin: 4px 0 8px; line-height: 1.4; }
+.tx-mode { display: flex; flex-direction: column; gap: 4px; }
+.tx-mode[hidden] { display: none; }
+.tx-mode label { display: flex; gap: 6px; align-items: baseline; }
+.tx-sub { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+#tx-manage[hidden] { display: none; }
+.tx-list { min-height: 160px; max-height: 320px; }
+.tx-item { display: flex; align-items: center; gap: 8px; padding: 4px 8px; }
+.tx-item + .tx-item { border-top: 1px solid var(--border); }
+.tx-name { font-family: var(--mono); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.tx-desc { color: var(--muted); font-size: 12px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tx-item button { font-size: 12px; padding: 1px 8px; }
+.tx-output { max-height: 120px; overflow: auto; font: 11px/1.4 var(--mono); background: var(--hover); border-radius: 6px; padding: 6px 8px; margin: 8px 0 0; white-space: pre-wrap; }
+.tx-actions { display: flex; gap: 6px; }
+.problems li .fix { margin-left: 8px; font-size: 12px; padding: 0 8px; }
+.problems li .hint { color: var(--muted); margin-left: 6px; }

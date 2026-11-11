@@ -7,9 +7,46 @@ folders (git-friendly: the source file is always the single source of truth).
 ## Requirements
 
 - Node.js 20+
-- A TeX distribution with `latexmk` on `PATH` (MacTeX / TeX Live)
+- A TeX distribution with `latexmk` on `PATH` (MacTeX / TeX Live), except in the desktop app,
+  which bundles its own
 
-## Install as an app
+## Desktop app (.dmg / AppImage)
+
+A standalone app that needs nothing else installed: it ships its own TeX Live and runs the editor
+in its own window.
+
+```bash
+npm install
+npm run tex:build -- --from /usr/local/texlive/2026basic --platforms darwin,linux-x64
+npm run dist          # release/LaTeX Editor-<version>-{arm64,x64}.dmg and -x86_64.AppImage
+```
+
+- `npm run tex:build` builds the bundled TeX into `build/texlive`. Without `--from` it installs a
+  fresh TeX Live from CTAN (needs Perl and internet); with `--from` it starts from an existing
+  TeX Live folder. `--platforms` picks the binaries to include (`darwin`, `linux-x64`,
+  `linux-arm64`), and `--packages papers` (default) adds the publisher classes and packages
+  papers usually need (IEEE, ACM, Elsevier, LNCS, REVTeX, biblatex, algorithms, TikZ, …).
+- `npm run dist:mac` / `npm run dist:linux` build one platform; `npm run electron:dev` runs the
+  desktop app from the sources (with hot reload).
+- The builds are **unsigned**. On macOS, the first launch is blocked: right-click the app and
+  choose **Open**, or allow it in System Settings → Privacy & Security. If macOS says the app
+  "is damaged", run `xattr -cr "/Applications/LaTeX Editor.app"`. On Ubuntu, make the AppImage
+  executable (`chmod +x`); Ubuntu 22.04 and later also need `sudo apt install libfuse2`.
+
+**TeX in the app is layered, like a container image:**
+
+- The **base** is the TeX Live inside the app. It's read-only and replaced by app updates.
+- The **user layer** (`~/Library/Application Support/LaTeX Editor/tex` on macOS,
+  `~/.config/LaTeX Editor/tex` on Ubuntu) holds packages installed from the app.
+- Compiles see only these two: no system TeX, `~/Library/texmf` or `~/texmf`. (`latexmk` still
+  reads `~/.latexmkrc` and a project's `latexmkrc`.)
+- When a compile stops on a missing package, the problems list offers **Install & recompile**.
+  ⚙ → **Manage TeX packages…** searches, installs and removes packages, updates them, or
+  resets the user layer. It can also switch to the system's TeX instead.
+- Perl (for `latexmk`, `latexdiff`) and git (for comparing versions) come from the system; macOS
+  and Ubuntu include Perl.
+
+## Install as a launcher (from the sources)
 
 ```bash
 npm install

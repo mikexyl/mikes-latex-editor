@@ -1,6 +1,8 @@
 import type { CompileResult, Problem } from '../../server/compile.ts';
 
 export type { CompileResult, Problem };
+export type { TexStatus, TexPackage } from '../../server/tex.ts';
+import type { TexStatus, TexPackage } from '../../server/tex.ts';
 export type Entry = { path: string; type: 'file' | 'dir' };
 export type Project = { name: string; root: string; tree: Entry[]; mains: string[] };
 export type PdfBox = { page: number; h: number; v: number; width: number; height: number };
@@ -114,4 +116,19 @@ export const api = {
     }).then(json<{ recent: RecentProject[] }>),
 
   listFolder: (path: string) => call(`/api/fs/list?path=${q(path)}`).then(json<FolderListing>),
+
+  // ---- TeX (bundled TeX Live and its packages) ----
+  texStatus: () => call('/api/tex/status').then(json<TexStatus>),
+  texSetMode: (mode: 'bundled' | 'system') => post<TexStatus>('/api/tex/mode', { mode }),
+  texInstalled: () => call('/api/tex/packages').then(json<{ packages: TexPackage[] }>),
+  texSearch: (query: string) => call(`/api/tex/search?q=${q(query)}`).then(json<{ packages: TexPackage[] }>),
+  texProviders: (file: string) => call(`/api/tex/provides?file=${q(file)}`).then(json<{ packages: string[] }>),
+  texInstall: (packages: string[]) => post<{ output: string }>('/api/tex/install', { packages }),
+  texRemove: (packages: string[]) => post<{ output: string }>('/api/tex/remove', { packages }),
+  texUpdate: () => post<{ output: string }>('/api/tex/update', {}),
+  texReset: () => post<{ ok: true }>('/api/tex/reset', {}),
 };
+
+function post<T>(url: string, body: unknown): Promise<T> {
+  return call(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(json<T>);
+}

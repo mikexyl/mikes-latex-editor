@@ -2,6 +2,7 @@ import { EditorView } from '@codemirror/view';
 import type { EditorState, Text } from '@codemirror/state';
 import { initProjectPicker } from './projects.ts';
 import { initSettings } from './settings.ts';
+import { initTex, installProviding, texStatus } from './tex.ts';
 import { api, setProjectRoot, ConflictError, type Project, type CompileResult, type Problem } from './api.ts';
 import { editorExtensions, createState, goToLine, setModes, supportsVisual, type Modes } from './editor.ts';
 import { ReviewPanel } from './review/panel.ts';
@@ -671,6 +672,7 @@ function problemRow(p: Problem) {
   const msg = document.createElement('span');
   msg.textContent = p.message;
   li.append(icon, loc, msg);
+  if (p.missingFile) li.append(missingPackageFix(p.missingFile));
   if (p.file && TEXT_EXT.test(p.file) && project.tree.some((e) => e.path === p.file)) {
     li.onclick = async () => {
       ensureEditorVisible();
@@ -679,6 +681,37 @@ function problemRow(p: Problem) {
     };
   } else li.classList.add('no-jump');
   return li;
+}
+
+/** For "File `x.sty' not found": install it (bundled TeX) or say how (system TeX). */
+function missingPackageFix(file: string): HTMLElement {
+  const name = file.replace(/\.(sty|cls)$/, '');
+  if (!texStatus()?.manageable) {
+    const hint = document.createElement('span');
+    hint.className = 'hint';
+    hint.textContent = `Install it with \`tlmgr --usermode install ${name}\` or \`sudo tlmgr install ${name}\` (the package name may differ).`;
+    return hint;
+  }
+  const b = document.createElement('button');
+  b.className = 'fix primary';
+  b.textContent = 'Install & recompile';
+  b.title = `Install the TeX Live package that provides ${file} into the app's TeX, then compile again`;
+  b.onclick = async (e) => {
+    e.stopPropagation();
+    b.disabled = true;
+    b.textContent = 'Installing…';
+    setStatus(`Installing the package that provides ${file}…`);
+    try {
+      const pkg = await installProviding(file);
+      setStatus(`Installed ${pkg}. Compiling…`);
+      await saveAllAndCompile();
+    } catch (err) {
+      b.disabled = false;
+      b.textContent = 'Install & recompile';
+      setStatus((err as Error).message, true);
+    }
+  };
+  return b;
 }
 
 $('log-toggle').onclick = () => {
@@ -868,6 +901,7 @@ window.addEventListener('beforeunload', (e) => {
 });
 
 initProjectPicker({ beforeSwitch: saveAll, setStatus });
+initTex();
 initSettings({ onLayoutChange: () => { view.requestMeasure(); for (const v of nested.values()) v.requestMeasure(); } });
 
 // Another window switched this server to a different project: this page's files are stale.

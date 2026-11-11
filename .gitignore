@@ -4,3 +4,5 @@ dist/
 .DS_Store
 web/src/lezer-latex/latex.mjs
 web/src/lezer-latex/latex.terms.mjs
+build/
+release/

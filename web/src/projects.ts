@@ -1,6 +1,7 @@
 // Project picker: recent projects plus a folder browser. Switching saves open files, tells the
 // server to open the new folder, and reloads the page for a clean start in that project.
 import { api, type FolderListing, type RecentProject } from './api.ts';
+import { desktop } from './desktop.ts';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -118,6 +119,16 @@ export function initProjectPicker(h: Hooks) {
   $('pd-up').onclick = () => { if (listing?.parent) void browse(listing.parent); };
   $('pd-home').onclick = () => void browse('~');
   $('pd-open').onclick = () => { if (listing) void switchTo(listing.path); };
+  // In the desktop app: the system's own folder chooser.
+  if (desktop) {
+    const choose = $<HTMLButtonElement>('pd-choose');
+    choose.hidden = false;
+    if (desktop.platform !== 'darwin') choose.textContent = 'Choose folder…';
+    choose.onclick = async () => {
+      const picked = await desktop!.pickFolder(listing?.path);
+      if (picked) void switchTo(picked);
+    };
+  }
   window.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') {
       e.preventDefault();

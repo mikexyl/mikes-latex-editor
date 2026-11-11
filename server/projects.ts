@@ -5,15 +5,16 @@ import { existsSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-const CONFIG_DIR = process.env.LATEX_EDITOR_CONFIG ?? path.join(os.homedir(), '.config', 'latex-editor');
-const RECENT_FILE = path.join(CONFIG_DIR, 'projects.json');
+// Read when used, so the desktop app can point it at its own data folder before starting.
+const configDir = () => process.env.LATEX_EDITOR_CONFIG ?? path.join(os.homedir(), '.config', 'latex-editor');
+const recentFile = () => path.join(configDir(), 'projects.json');
 const MAX_RECENT = 15;
 
 export type RecentProject = { path: string; name: string; openedAt: string; exists: boolean };
 
 async function readRecent(): Promise<{ path: string; openedAt: string }[]> {
   try {
-    const data = JSON.parse(await fs.readFile(RECENT_FILE, 'utf8'));
+    const data = JSON.parse(await fs.readFile(recentFile(), 'utf8'));
     return Array.isArray(data.recent) ? data.recent.filter((r: { path?: unknown }) => typeof r?.path === 'string') : [];
   } catch {
     return [];
@@ -21,10 +22,10 @@ async function readRecent(): Promise<{ path: string; openedAt: string }[]> {
 }
 
 async function writeRecent(recent: { path: string; openedAt: string }[]) {
-  await fs.mkdir(CONFIG_DIR, { recursive: true });
-  const tmp = `${RECENT_FILE}.tmp`;
+  await fs.mkdir(configDir(), { recursive: true });
+  const tmp = `${recentFile()}.tmp`;
   await fs.writeFile(tmp, JSON.stringify({ recent }, null, 2));
-  await fs.rename(tmp, RECENT_FILE);
+  await fs.rename(tmp, recentFile());
 }
 
 const isDir = (p: string) => { try { return statSync(p).isDirectory(); } catch { return false; } };
