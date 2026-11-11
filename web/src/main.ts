@@ -24,6 +24,8 @@ type OpenFile = {
   savedDoc: Text;
   mtime: number;
   saving: Promise<void>;
+  /** Document position at the top of the view when the file was last left (restored later). */
+  scroll?: number;
 };
 
 let project: Project;
@@ -85,9 +87,19 @@ const nested = new Map<string, EditorView>();
 const pool = new Map<string, HTMLElement>();
 /** Inline editors currently on the page. */
 const attached = new Set<string>();
+/** The \input argument each inline file was mounted for (the key of its remembered height). */
+const includeRel = new Map<string, string>();
+
+/** Remember an inline file's on-page height, so it comes back at that size (no layout shift). */
+function rememberIncludeHeight(path: string) {
+  const box = pool.get(path)?.closest('.vc-include');
+  const rel = includeRel.get(path);
+  if (box && rel) includeHeights.set(rel, box.getBoundingClientRect().height);
+}
 
 /** Drop all inline editors (the main file changed), keeping their state in the open files. */
 function disposeInline() {
+  for (const path of attached) rememberIncludeHeight(path);
   for (const [path, v] of nested) {
     const f = open.get(path);
     if (f) f.state = v.state;
@@ -119,21 +131,32 @@ async function loadFile(path: string): Promise<OpenFile> {
 async function openFile(path: string): Promise<OpenFile> {
   const f = await loadFile(path);
   if (current !== f) {
-    if (current) current.state = view.state;
+    if (current) {
+      current.state = view.state;
+      current.scroll = topVisiblePos();
+    }
     // Inline editors belong to the page being left; their state (and history) goes back to the
     // open files, so the file being opened here starts from its latest content.
     disposeInline();
     current = f;
     view.setState(f.state);
     setModes(view, f.path, modes()); // the file may have been opened under other modes
+    // Back where you left it: put the line that was at the top back at the top. A document
+    // position (not a pixel offset) stays right while heights settle. Without taking focus: a
+    // focused editor keeps the browser's caret in sync with the selection, which (for a file you
+    // only scrolled) is still at the end and would pull the view down there.
+    if (f.scroll !== undefined) {
+      view.dispatch({ effects: EditorView.scrollIntoView(Math.min(f.scroll, view.state.doc.length), { y: 'start' }) });
+    }
   }
+  renderBackToMain();
   revealInTree(path);
   renderModeToggle();
   review.render();
   void applyCompareBase(f);
   $('current-file').textContent = path;
   renderTree();
-  view.focus();
+  if (f.scroll === undefined) view.focus(); // (see above: restoring a scroll position must not take focus)
   return f;
 }
 
@@ -192,6 +215,28 @@ function replaceContent(f: OpenFile, content: string) {
   renderDirty();
 }
 
+/** The document position shown at the top of the editor (read from the screen). */
+function topVisiblePos(): number | undefined {
+  if (view.scrollDOM.scrollTop < 4) return undefined; // at the top: nothing to restore
+  const r = view.scrollDOM.getBoundingClientRect();
+  const c = view.contentDOM.getBoundingClientRect();
+  return view.posAtCoords({ x: c.left + 8, y: r.top + 4 }, false) ?? undefined;
+}
+
+// ---------- back to the root file ----------
+
+/** In a file other than the root (main) document, offer a one-click way back to it. */
+function renderBackToMain() {
+  const b = $<HTMLButtonElement>('back-to-main');
+  const show = !!main && !!current && current.path !== main;
+  b.hidden = !show;
+  if (show) {
+    b.textContent = `↩ ${main.split('/').pop()}`;
+    b.title = `Back to the root file, ${main}`;
+  }
+}
+$('back-to-main').onclick = () => { ensureEditorVisible(); void openFile(main); };
+
 // ---------- \input files inline ----------
 
 /** Resolve an \input path like LaTeX does: relative to the main file's folder. */
@@ -210,9 +255,10 @@ setIncludeHost({
     for (let p = el.parentElement; p; p = p.parentElement) if (p.dataset.includePath) ancestors.add(p.dataset.includePath);
     if (ancestors.has(path) || attached.has(path)) return message(`${rel} is already shown above.`);
 
+    includeRel.set(path, rel);
     const unmount = () => {
       const wrapper = pool.get(path);
-      if (wrapper?.isConnected) includeHeights.set(rel, el.getBoundingClientRect().height);
+      if (wrapper?.isConnected) rememberIncludeHeight(path);
       wrapper?.remove(); // kept alive in the pool; reattached when scrolled back into view
       attached.delete(path);
     };
@@ -850,6 +896,7 @@ async function start() {
   select.onchange = () => {
     main = select.value;
     setAssetBase(mainDir());
+    renderBackToMain();
     void refreshProjectMacros();
     store.set(`main:${project.root}`, main);
     void saveAllAndCompile();
