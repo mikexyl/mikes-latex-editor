@@ -1,5 +1,5 @@
-// Side panel listing the tracked changes and comments in the open file.
-import { EditorView } from '@codemirror/view';
+// Side panel listing the tracked changes and comments in the open file and the files it includes.
+import type { EditorState, TransactionSpec } from '@codemirror/state';
 import { findReviewItems, isCommentKind, itemLabel, itemSummary, resolveSpec, type ReviewItem } from './model.ts';
 import type { CommentPrefs } from './commands.ts';
 
@@ -10,6 +10,15 @@ const el = (tag: string, cls: string, text?: string) => {
   return e;
 };
 
+/** A file whose items the panel lists: the open file first, then the files it includes. */
+export type ReviewSource = {
+  path: string;
+  state: () => EditorState;
+  dispatch: (spec: TransactionSpec) => void;
+  /** Show `pos` in the editor and put the cursor there. */
+  reveal: (pos: number) => void;
+};
+
 export class ReviewPanel {
   private timer: number | undefined;
   private content = el('div', 'review-content');
@@ -17,7 +26,7 @@ export class ReviewPanel {
   private prefs: CommentPrefs = { style: 'note', initials: '', macro: 'revnote' };
   onPrefsChange: (p: CommentPrefs) => void = () => {};
 
-  constructor(private root: HTMLElement, private view: EditorView, private onCount: (changes: number, comments: number) => void) {
+  constructor(private root: HTMLElement, private sources: () => ReviewSource[], private onCount: (changes: number, comments: number) => void) {
     // Built once (not on every render) so typing in these fields isn't interrupted.
     this.root.append(this.content, this.settings);
     this.buildSettings();
@@ -78,36 +87,45 @@ export class ReviewPanel {
   }
 
   render() {
-    const state = this.view.state;
-    const items = findReviewItems(state);
-    const changes = items.filter((i) => i.kind === 'added' || i.kind === 'deleted' || i.kind === 'replaced');
-    const comments = items.filter((i) => isCommentKind(i.kind));
+    const groups = this.sources().map((src) => ({ src, items: findReviewItems(src.state()) }));
+    const all = groups.flatMap((g) => g.items);
+    const changes = all.filter((i) => !isCommentKind(i.kind));
+    const comments = all.filter((i) => isCommentKind(i.kind));
     this.onCount(changes.length, comments.length);
     if (this.root.hidden) return;
 
     const header = el('div', 'review-header');
     header.append(el('span', 'review-title', `${changes.length} change${changes.length === 1 ? '' : 's'} · ${comments.length} comment${comments.length === 1 ? '' : 's'}`));
-    const all = (label: string, accept: boolean) => {
+    const bulk = (label: string, accept: boolean) => {
       const b = el('button', 'review-all', label) as HTMLButtonElement;
       b.disabled = changes.length === 0;
       b.onclick = () => {
-        this.view.dispatch(resolveSpec(this.view.state, findReviewItems(this.view.state).filter((i) => i.kind === 'added' || i.kind === 'deleted' || i.kind === 'replaced'), accept));
-        this.view.focus();
+        for (const src of this.sources()) {
+          const state = src.state();
+          const items = findReviewItems(state).filter((i) => !isCommentKind(i.kind));
+          if (items.length) src.dispatch(resolveSpec(state, items, accept));
+        }
+        this.render();
       };
       return b;
     };
     const actions = el('div', 'review-all-actions');
-    actions.append(all('Accept all', true), all('Reject all', false));
+    actions.append(bulk('Accept all', true), bulk('Reject all', false));
     header.append(actions);
 
     const list = el('ul', 'review-list');
-    if (!items.length) list.append(el('li', 'review-empty', 'No changes or comments in this file. Turn on Track changes to record edits, or press Comment to add a note.'));
-    for (const it of items) list.append(this.row(it));
+    if (!all.length) list.append(el('li', 'review-empty', 'No changes or comments in this file or the files it includes. Turn on Track changes to record edits, or press Comment to add a note.'));
+    const withItems = groups.filter((g) => g.items.length);
+    for (const { src, items } of withItems) {
+      // Name the file when there's more than one, or when the items aren't in the open file.
+      if (withItems.length > 1 || src !== groups[0].src) list.append(el('li', 'review-file', src.path));
+      for (const it of items) list.append(this.row(src, it));
+    }
     this.content.replaceChildren(header, list);
   }
 
-  private row(it: ReviewItem) {
-    const state = this.view.state;
+  private row(src: ReviewSource, it: ReviewItem) {
+    const state = src.state();
     const li = el('li', `review-item review-${it.kind}`);
     const meta = el('div', 'review-meta');
     meta.append(el('span', `review-tag review-tag-${it.kind}`, itemLabel(it)));
@@ -131,9 +149,10 @@ export class ReviewPanel {
       b.title = title;
       b.onclick = (e) => {
         e.stopPropagation();
-        const fresh = findReviewItems(this.view.state).find((x) => x.from === it.from && x.kind === it.kind);
-        if (fresh) this.view.dispatch(resolveSpec(this.view.state, [fresh], accept));
-        this.view.focus();
+        const now = src.state();
+        const fresh = findReviewItems(now).find((x) => x.from === it.from && x.kind === it.kind);
+        if (fresh) src.dispatch(resolveSpec(now, [fresh], accept));
+        this.render();
       };
       return b;
     };
@@ -143,9 +162,7 @@ export class ReviewPanel {
     li.onclick = () => {
       // Put the cursor just inside the item so visual mode shows its actions.
       const a = it.kind === 'note' ? it.args[it.args.length - 1] : it.args[0];
-      const pos = Math.min(a.open + 1, state.doc.length);
-      this.view.dispatch({ selection: { anchor: pos }, effects: EditorView.scrollIntoView(pos, { y: 'center' }) });
-      this.view.focus();
+      src.reveal(Math.min(a.open + 1, src.state().doc.length));
     };
     return li;
   }

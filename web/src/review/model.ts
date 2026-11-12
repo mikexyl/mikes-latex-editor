@@ -170,3 +170,17 @@ export function itemSummary(state: EditorState, it: ReviewItem): { text: string;
 
 /** Comments of any style (resolved, not accepted/rejected). */
 export const isCommentKind = (k: ReviewKind) => k === 'comment' || k === 'highlight' || k === 'note';
+
+/** The files a document \input-s or \include-s, as written (with .tex added), in order. */
+export function findIncludes(state: EditorState): { rel: string; pos: number }[] {
+  const out: { rel: string; pos: number }[] = [];
+  syntaxTree(state).iterate({
+    enter(ref) {
+      if (ref.name !== 'Input' && ref.name !== 'Include') return;
+      const file = /\{([^}]*)\}/.exec(state.sliceDoc(ref.from, ref.to))?.[1].trim();
+      if (file) out.push({ rel: /\.\w+$/.test(file) ? file : `${file}.tex`, pos: ref.from });
+      return false;
+    },
+  });
+  return out;
+}

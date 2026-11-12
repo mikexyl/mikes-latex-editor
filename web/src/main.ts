@@ -1,11 +1,13 @@
 import { EditorView } from '@codemirror/view';
-import type { EditorState, Text } from '@codemirror/state';
+import type { EditorState, Text, TransactionSpec } from '@codemirror/state';
+import { ensureSyntaxTree } from '@codemirror/language';
 import { initProjectPicker } from './projects.ts';
 import { initSettings } from './settings.ts';
 import { initTex, installProviding, texStatus } from './tex.ts';
 import { api, setProjectRoot, ConflictError, type Project, type CompileResult, type Problem } from './api.ts';
 import { editorExtensions, createState, goToLine, setModes, supportsVisual, type Modes } from './editor.ts';
-import { ReviewPanel } from './review/panel.ts';
+import { ReviewPanel, type ReviewSource } from './review/panel.ts';
+import { findIncludes } from './review/model.ts';
 import { addComment, setCommentPrefs, type CommentPrefs } from './review/commands.ts';
 import { compareField, setCompareBase } from './compare/diff.ts';
 import { setAssetBase } from './visual/widgets.ts';
@@ -41,14 +43,18 @@ const extensions = editorExtensions({
     renderDirty();
     review.schedule();
     scheduleCompareStats();
-    clearTimeout(autosaveTimer);
-    // All open files, not just the current one: included files are edited inline too.
-    autosaveTimer = window.setTimeout(() => { void saveAll().then(() => refreshProjectMacros()); }, AUTOSAVE_MS);
+    scheduleAutosave();
     view.requestMeasure(); // an inline included file may have changed height
   },
   onSave: () => void saveAllAndCompile(),
   onFindInPdf: () => void findInPdf(),
 });
+
+function scheduleAutosave() {
+  clearTimeout(autosaveTimer);
+  // All open files, not just the current one: included files are edited inline too.
+  autosaveTimer = window.setTimeout(() => { void saveAll().then(() => refreshProjectMacros()); }, AUTOSAVE_MS);
+}
 
 const store = {
   get(k: string) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -63,7 +69,7 @@ let commentPrefs: CommentPrefs = { style: 'note', initials: '', macro: DEFAULT_N
 const modes = (): Modes => ({ visual: visualMode, tracking, noteMacro: commentPrefs.macro });
 
 const view = new EditorView({ parent: $('editor'), state: createState('', '', extensions, { visual: false, tracking: false, noteMacro: 'note' }) });
-const review = new ReviewPanel($('review'), view, (changes, comments) => {
+const review = new ReviewPanel($('review'), () => reviewSources(), (changes, comments) => {
   const badge = $('review-count');
   badge.textContent = String(changes + comments);
   badge.hidden = changes + comments === 0;
@@ -429,6 +435,81 @@ function activeEditor(): { v: EditorView; path: string } | null {
     if (v) return { v, path: lastNested };
   }
   return current ? { v: view, path: current.path } : null;
+}
+
+// ---------- review panel: the open file and the files it includes ----------
+
+const unreadable = new Set<string>(); // included files that couldn't be loaded, not retried
+/** A state with its syntax tree parsed (states of files not on screen aren't parsed by a view). */
+const parsed = (state: EditorState) => { ensureSyntaxTree(state, state.doc.length, 500); return state; };
+
+/** The open file, then (in document order, recursively) every file it \input-s or \include-s. */
+function reviewSources(): ReviewSource[] {
+  if (!current) return [];
+  const out: ReviewSource[] = [{
+    path: current.path,
+    state: () => view.state,
+    dispatch: (spec) => view.dispatch(spec),
+    reveal: (pos) => revealIn(view, pos),
+  }];
+  const seen = new Set([current.path]);
+  const walk = (state: EditorState, anchor: number | null) => {
+    for (const { rel, pos } of findIncludes(state)) {
+      const path = resolveInclude(rel);
+      if (!path || seen.has(path) || !supportsVisual(path)) continue;
+      seen.add(path);
+      const f = open.get(path);
+      if (!f) {
+        // Load it, then list it.
+        if (!unreadable.has(path)) void loadFile(path).then(() => review.schedule(), () => unreadable.add(path));
+        continue;
+      }
+      const at = anchor ?? pos; // where it comes in the open file
+      out.push({
+        path,
+        state: () => parsed(liveState(f)),
+        dispatch: (spec) => dispatchTo(f, spec),
+        reveal: (p) => revealIncluded(f, at, p),
+      });
+      walk(parsed(liveState(f)), at);
+    }
+  };
+  walk(view.state, null);
+  return out;
+}
+
+/** Change a file that may not be on screen: in its inline editor if it has one, else its state. */
+function dispatchTo(f: OpenFile, spec: TransactionSpec) {
+  const v = nested.get(f.path);
+  if (v) return v.dispatch(spec);
+  f.state = f.state.update(spec).state;
+  renderDirty();
+  scheduleAutosave();
+}
+
+function revealIn(v: EditorView, pos: number) {
+  v.dispatch({ selection: { anchor: pos }, effects: EditorView.scrollIntoView(pos, { y: 'center' }) });
+  v.focus();
+}
+
+/** Show a place in an included file: inline below its \input (visual mode), or open the file. */
+function revealIncluded(f: OpenFile, anchor: number, pos: number) {
+  const inline = () => (attached.has(f.path) ? nested.get(f.path) : undefined);
+  const v = visualMode ? inline() : undefined;
+  if (v) return revealIn(v, pos);
+  const openIt = () => void openFile(f.path).then(() => revealIn(view, pos));
+  if (!visualMode) return openIt();
+  // Inline but scrolled away (not on the page): bring its \input into view, wait for the
+  // editor to mount, then go to the spot. If it never mounts (not shown inline), open the file.
+  view.dispatch({ effects: EditorView.scrollIntoView(Math.min(anchor, view.state.doc.length), { y: 'start' }) });
+  const until = performance.now() + 1500;
+  const wait = () => {
+    const w = inline();
+    if (w) return requestAnimationFrame(() => revealIn(w, pos));
+    if (performance.now() > until) return openIt();
+    requestAnimationFrame(wait);
+  };
+  requestAnimationFrame(wait);
 }
 
 // ---------- conflict banner ----------
