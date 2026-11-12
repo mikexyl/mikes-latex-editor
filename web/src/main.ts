@@ -339,9 +339,23 @@ async function refreshProjectMacros() {
   }
 }
 
-/** The editor the user is working in: an inline included file if focused, else the main one. */
+/**
+ * The editor the user is working in: an inline included file if focused, else the main one. Focus
+ * may have moved to a toolbar control by now, so fall back to the editor focused last.
+ */
+let lastNested: string | null = null; // path of the inline editor focused last, null = the main one
+document.addEventListener('focusin', (e) => {
+  const t = e.target as Node;
+  if (!view.dom.contains(t)) return; // a toolbar, panel or dialog: keep what we had
+  lastNested = null;
+  for (const [path, v] of nested) if (v.dom.contains(t)) lastNested = path;
+});
 function activeEditor(): { v: EditorView; path: string } | null {
   for (const [path, v] of nested) if (v.hasFocus) return { v, path };
+  if (!view.hasFocus && lastNested) {
+    const v = nested.get(lastNested);
+    if (v) return { v, path: lastNested };
+  }
   return current ? { v: view, path: current.path } : null;
 }
 
@@ -775,7 +789,10 @@ $('track-toggle').onclick = () => {
   setStatus(tracking ? 'Track changes on: edits are recorded as \\added / \\deleted.' : 'Track changes off.');
   view.focus();
 };
-$('comment-btn').onclick = () => { addComment(view); };
+// In the editor being typed in: often an inline \input file, not the main one. Clicking mustn't
+// take focus from it.
+$('comment-btn').onmousedown = (e) => e.preventDefault();
+$('comment-btn').onclick = () => { addComment(activeEditor()?.v ?? view); };
 $('review-toggle').onclick = () => {
   const panel = $('review');
   panel.hidden = !panel.hidden;
