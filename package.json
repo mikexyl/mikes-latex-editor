@@ -30,7 +30,7 @@
     "electron": "npm run build && npm run electron:build && NODE_ENV=production electron .",
     "tex:build": "node scripts/build-tex.mjs",
     "dist": "npm run build && npm run electron:build && electron-builder",
-    "dist:mac": "npm run build && npm run electron:build && { ulimit -n 65536 2>/dev/null || ulimit -n 10240 2>/dev/null || true; } && electron-builder --mac",
+    "dist:mac": "npm run build && npm run electron:build && electron-builder --mac",
     "dist:linux": "npm run build && npm run electron:build && electron-builder --linux"
   },
   "dependencies": {
@@ -75,6 +75,7 @@
       "LICENSE"
     ],
     "asar": true,
+    "afterPack": "scripts/after-pack.cjs",
     "mac": {
       "target": [
         {
@@ -87,11 +88,7 @@
       ],
       "category": "public.app-category.productivity",
       "icon": "build-resources/icon.icns",
-      "identity": "-",
-      "hardenedRuntime": false,
-      "signIgnore": [
-        "/Contents/Resources/texlive/texmf-dist/"
-      ],
+      "identity": null,
       "extraResources": [
         {
           "from": "build/texlive",
