@@ -13,7 +13,11 @@ folders (git-friendly: the source file is always the single source of truth).
 ## Desktop app (.dmg / AppImage)
 
 A standalone app that needs nothing else installed: it ships its own TeX Live and runs the editor
-in its own window.
+in its own window. **Download it from the
+[Releases page](https://github.com/mikexyl/latex-editor/releases)**: a `.dmg` for macOS (Apple
+Silicon or Intel) or an AppImage for Linux.
+
+To build it yourself:
 
 ```bash
 npm install
@@ -28,7 +32,11 @@ npm run dist          # release/Mikes-<version>-{arm64,x64}.dmg and -x86_64.AppI
   papers usually need (IEEE, ACM, Elsevier, LNCS, REVTeX, biblatex, algorithms, TikZ, …).
 - `npm run dist:mac` / `npm run dist:linux` build one platform; `npm run electron:dev` runs the
   desktop app from the sources (with hot reload).
-- The builds are **unsigned**. On macOS, the first launch is blocked: right-click the app and
+- **Releasing:** push a version tag (`git tag v0.1.0 && git push origin v0.1.0`). GitHub Actions
+  (`.github/workflows/release.yml`) builds the DMGs on macOS and the AppImage on Linux, each with
+  a freshly built TeX Live, and publishes them on a release for that tag. Running the workflow by
+  hand from the Actions tab builds without publishing.
+- The builds are only **ad-hoc signed**, not notarized by Apple. On macOS, the first launch is blocked: right-click the app and
   choose **Open**, or allow it in System Settings → Privacy & Security. If macOS says the app
   "is damaged", run `xattr -cr "/Applications/Mike's.app"`. On Ubuntu, make the AppImage
   executable (`chmod +x`); Ubuntu 22.04 and later also need `sudo apt install libfuse2`.

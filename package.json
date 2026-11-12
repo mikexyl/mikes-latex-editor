@@ -87,7 +87,8 @@
       ],
       "category": "public.app-category.productivity",
       "icon": "build-resources/icon.icns",
-      "identity": null,
+      "identity": "-",
+      "hardenedRuntime": false,
       "extraResources": [
         {
           "from": "build/texlive",

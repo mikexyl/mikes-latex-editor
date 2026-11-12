@@ -1,0 +1,103 @@
+# Builds the desktop app and attaches it to a GitHub Release:
+#   git tag v0.1.0 && git push origin v0.1.0
+# publishes Mikes-<version>-arm64.dmg, -x64.dmg and -x86_64.AppImage on the release page.
+# Run it by hand (Actions → Release → Run workflow) to build without publishing; the files are
+# then attached to the run as artifacts.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-latest
+            dist: dist:mac
+            files: release/*.dmg
+          - name: Linux
+            os: ubuntu-latest
+            dist: dist:linux
+            files: release/*.AppImage
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # The bundled TeX Live (build/texlive, ~400 MB) comes from CTAN; reuse it until the script
+      # that builds it changes.
+      - name: Restore bundled TeX Live
+        id: tex-cache
+        uses: actions/cache@v4
+        with:
+          path: build/texlive
+          key: texlive-${{ runner.os }}-${{ hashFiles('scripts/build-tex.mjs') }}
+
+      - name: Build bundled TeX Live
+        if: steps.tex-cache.outputs.cache-hit != 'true'
+        # CTAN's mirror redirector sometimes lands on a bad mirror: try again once.
+        run: npm run tex:build || npm run tex:build
+
+      - name: Build the app
+        run: npm run ${{ matrix.dist }} -- --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.files }}
+          if-no-files-found: error
+          compression-level: 0
+
+  release:
+    name: Publish release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          cat > notes.md <<'EOF'
+          ## Download
+
+          - **macOS (Apple Silicon):** `Mikes-*-arm64.dmg`
+          - **macOS (Intel):** `Mikes-*-x64.dmg`
+          - **Linux (x86-64):** `Mikes-*-x86_64.AppImage`
+
+          The app includes its own TeX Live; nothing else needs to be installed.
+
+          **macOS:** the app isn't notarized by Apple. After dragging it to Applications, run
+          `xattr -cr "/Applications/Mike's.app"` once, or right-click it and choose **Open**.
+
+          **Linux:** `chmod +x Mikes-*.AppImage`, then run it. Ubuntu 22.04 and later also need
+          `sudo apt install libfuse2`.
+          EOF
+          gh release create "$TAG" out/* --repo "$GITHUB_REPOSITORY" --title "Mike's ${TAG#v}" \
+            --notes-file notes.md --generate-notes
