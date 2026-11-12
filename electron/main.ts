@@ -5,6 +5,24 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
+// Recent Ubuntu releases block the unprivileged namespaces Chromium's sandbox needs, so an
+// AppImage (which can't install the setuid helper) wouldn't start. The window only ever shows
+// the app's own local page, so run it without that sandbox there. The switch has to be on the
+// real command line: set from here (app.commandLine.appendSwitch) it comes too late, Chromium's
+// helper processes are already sandboxed and crash, and the window stays blank. So start again
+// with it, through the AppImage itself (this process's executable is inside its mount, which
+// goes away when we exit).
+if (process.platform === 'linux' && process.env.APPIMAGE && !process.argv.includes('--no-sandbox')
+  && userNamespacesRestricted()) {
+  app.relaunch({ execPath: process.env.APPIMAGE, args: [...process.argv.slice(1), '--no-sandbox'] });
+  app.exit(0);
+  await new Promise(() => {}); // run nothing else in this instance
+}
+function userNamespacesRestricted(): boolean {
+  try { return fs.readFileSync('/proc/sys/kernel/apparmor_restrict_unprivileged_userns', 'utf8').trim() === '1'; }
+  catch { return false; }
+}
+
 // Development runs keep their data apart from the installed app's.
 if (!app.isPackaged) app.setName("Mike's Dev");
 // The app was first released as "LaTeX Editor": carry its data (recent projects, installed TeX
@@ -46,11 +64,6 @@ const { lastProject } = await import('../server/projects.ts');
 const PREFERRED_PORT = app.isPackaged ? 47801 : 47802;
 
 if (!app.requestSingleInstanceLock()) app.exit(0);
-
-// Recent Ubuntu releases block the unprivileged namespaces Chromium's sandbox needs, so an
-// AppImage (which can't install the setuid helper) wouldn't start. The window only ever shows
-// the app's own local page, so run it without that sandbox there.
-if (process.platform === 'linux' && process.env.APPIMAGE) app.commandLine.appendSwitch('no-sandbox');
 
 /** The bundled TeX Live: in the app's resources when packaged, build/texlive while developing. */
 function texBase(): string | null {

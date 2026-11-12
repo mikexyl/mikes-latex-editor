@@ -287,7 +287,8 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   const worker = opts.production && existsSync(builtWorker)
     ? builtWorker : createRequire(import.meta.url).resolve('pdfjs-dist/build/pdf.worker.min.mjs');
   app.get('/vendor/pdf.worker.min.mjs', (_req, res) => {
-    res.type('text/javascript').sendFile(worker);
+    // dotfiles: the AppImage runs from a hidden mount (/tmp/.mount_…).
+    res.type('text/javascript').sendFile(worker, { dotfiles: 'allow' });
   });
 
   const server = http.createServer(app);
