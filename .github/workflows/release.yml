@@ -59,6 +59,14 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
+      # Apple Silicon refuses to run code with a broken signature: check the app and its TeX.
+      - name: Check the Mac app
+        if: runner.os == 'macOS'
+        run: |
+          app="release/mac-arm64/Mike's.app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          "$app/Contents/Resources/texlive/bin/universal-darwin/pdflatex" --version | head -1
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
