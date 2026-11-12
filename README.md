@@ -44,7 +44,8 @@ packages, or switches to the system's TeX.
 - **Visual or Source mode**, switchable any time. In visual mode, single line breaks flow like in
   the PDF; Enter starts a new paragraph.
 - **Track changes** (toolbar switch): typing, deleting and overwriting are recorded as
-  `\added` / `\deleted` / `\replaced`. Edits that would break the LaTeX are refused.
+  `\added` / `\deleted` / `\replaced`, signed with your initials (`\deleted[id=XL]{…}`). Edits
+  that would break the LaTeX are refused.
 - **Comment** (⌘⌥M / Ctrl+Alt+M, or select text and use the toolbar that appears): adds
   `\revnote{XL}{…}` with your initials, or `\revnote[selection]{XL}{…}` on a selection, which
   highlights the text the note is about. Notes print in red in the PDF. Notes written as

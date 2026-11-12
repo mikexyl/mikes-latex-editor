@@ -1,11 +1,12 @@
-// Track changes: rewrites typing/deleting into \added{..}, \deleted{..} and \replaced{new}{old}.
+// Track changes: rewrites typing/deleting into \added{..}, \deleted{..} and \replaced{new}{old},
+// signed with your initials (\added[id=XL]{..}) when you've set them.
 // Edits inside your own \added text (or comment text) are plain edits. Edits that would break
 // the LaTeX structure (inside math, command names, labels/citations, across braces) are refused
 // with a notice instead of producing an invalid file.
 import { Annotation, ChangeSet, EditorSelection, EditorState, Transaction, type ChangeSpec } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
-import { findReviewItems, reviewAction, type ReviewItem } from './model.ts';
+import { authorOpt, findReviewItems, getReviewAuthor, reviewAction, type ReviewItem } from './model.ts';
 
 const trackedEdit = Annotation.define<boolean>();
 
@@ -103,6 +104,8 @@ const ownArg = (it: ReviewItem) => (it.kind === 'added' || it.kind === 'replaced
 /** All of a note's or outline's arguments (author and text) are comment text: edits there aren't tracked. */
 const inNote = (it: ReviewItem, from: number, to: number) =>
   (it.kind === 'note' || it.kind === 'outline') && it.args.some((a) => from >= a.open + 1 && to <= a.close);
+/** Made by you (same initials, or both unsigned): your typing may merge into it. */
+const mine = (it: ReviewItem) => it.author === getReviewAuthor();
 const deletedArg = (it: ReviewItem) => (it.kind === 'deleted' ? it.args[0] : it.kind === 'replaced' ? it.args[1] : null);
 
 function trackOne(state: EditorState, items: ReviewItem[], c: Change, backward: boolean, headB: number, depth = 0): Result {
@@ -120,14 +123,15 @@ function trackOne(state: EditorState, items: ReviewItem[], c: Change, backward: 
     if (!text.trim()) return { changes: [{ from, insert: text }], cursor: from + k }; // whitespace: not worth tracking
     if (!balanced(text)) return { error: 'braces' };
     const at = del ? del.to : from;
-    const adj = items.find((it) => it.kind === 'added' && (it.to === at || it.from === at));
+    const adj = items.find((it) => it.kind === 'added' && mine(it) && (it.to === at || it.from === at));
     if (adj) {
       const pos = adj.to === at ? adj.args[0].close : adj.args[0].open + 1;
       return { changes: [{ from: pos, insert: text }], cursor: pos + k };
     }
     const why = unsafeAt(state, at);
     if (why) return { error: why };
-    return { changes: [{ from: at, insert: `\\added{${text}}` }], cursor: at + 7 + k };
+    const prefix = `\\added${authorOpt()}{`;
+    return { changes: [{ from: at, insert: `${prefix}${text}}` }], cursor: at + prefix.length + k };
   }
 
   // ---- deletion ----
@@ -152,7 +156,8 @@ function trackOne(state: EditorState, items: ReviewItem[], c: Change, backward: 
           if (it.kind === 'replaced') {
             const a = it.args[0];
             if (a.close > a.open + 1) return { changes: [{ from: a.close - 1, to: a.close }], cursor: a.close - 1 };
-            return { changes: [{ from: it.from, to: it.to, insert: `\\deleted{${state.sliceDoc(last.open + 1, last.close)}}` }], cursor: it.from };
+            const opt = it.opt ? state.sliceDoc(it.opt.from, it.opt.to) : '';
+            return { changes: [{ from: it.from, to: it.to, insert: `\\deleted${opt}{${state.sliceDoc(last.open + 1, last.close)}}` }], cursor: it.from };
           }
           if (it.kind === 'highlight') return redo(lastText.to - 1, lastText.to);
           return it.from > 0 ? redo(it.from - 1, it.from) : { changes: [], cursor: it.from };
@@ -172,17 +177,17 @@ function trackOne(state: EditorState, items: ReviewItem[], c: Change, backward: 
     const why = unsafeRange(state, from, to);
     if (why) return { error: why };
     const removed = state.sliceDoc(from, to);
-    const before = items.find((it) => it.kind === 'deleted' && it.from === to);
+    const before = items.find((it) => it.kind === 'deleted' && mine(it) && it.from === to);
     if (before) {
       const start = before.args[0].open + 1;
       return { changes: [{ from, to: start, insert: state.sliceDoc(to, start) + removed }], cursor: from };
     }
-    const after = items.find((it) => it.kind === 'deleted' && it.to === from);
+    const after = items.find((it) => it.kind === 'deleted' && mine(it) && it.to === from);
     if (after) {
       const close = after.args[0].close;
       return { changes: [{ from: close, to, insert: removed + '}' }], cursor: backward ? after.from : to };
     }
-    const wrapped = `\\deleted{${removed}}`;
+    const wrapped = `\\deleted${authorOpt()}{${removed}}`;
     return { changes: [{ from, to, insert: wrapped }], cursor: backward ? from : from + wrapped.length };
   }
 
@@ -192,7 +197,8 @@ function trackOne(state: EditorState, items: ReviewItem[], c: Change, backward: 
   if (!balanced(text)) return { error: 'braces' };
   const why = unsafeRange(state, from, to);
   if (why) return { error: why };
-  return { changes: [{ from, to, insert: `\\replaced{${text}}{${state.sliceDoc(from, to)}}` }], cursor: from + 10 + k };
+  const prefix = `\\replaced${authorOpt()}{`;
+  return { changes: [{ from, to, insert: `${prefix}${text}}{${state.sliceDoc(from, to)}}` }], cursor: from + prefix.length + k };
 }
 
 export const trackChanges = EditorState.transactionFilter.of((tr) => {

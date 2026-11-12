@@ -2,7 +2,7 @@ import { EditorState, EditorSelection } from '@codemirror/state';
 import { ensureSyntaxTree } from '@codemirror/language';
 import { latex } from '../web/src/visual/language.ts';
 import { trackChanges } from '../web/src/review/track.ts';
-import { findReviewItems, resolveSpec, noteMacroFacet } from '../web/src/review/model.ts';
+import { findReviewItems, resolveSpec, noteMacroFacet, setReviewAuthor } from '../web/src/review/model.ts';
 
 let notices: string[] = [];
 (globalThis as any).window = { dispatchEvent: (e: any) => notices.push(e.detail) };
@@ -118,5 +118,20 @@ check('outline done removes it', body(s.update(resolveSpec(s, notes, true)).stat
 s = mk('A \\revoutline{XL}{say why} B', 'A \\revoutline{XL}{say'.length, 'revnote');
 s = type(s, ' more');
 check('typing in outline untracked', body(s), 'A \\revoutline{XL}{say more why} B');
+// Signed changes: \added[id=XL]{..} etc. with your initials
+setReviewAuthor('XL');
+s = mk('Hello world.', 5); s = type(s, 'X'); s = type(s, 'Y');
+check('signed insert', body(s), 'Hello\\added[id=XL]{XY} world.');
+check('cursor after signed insert', String(cur(s)), String('Hello\\added[id=XL]{XY'.length));
+s = mk('Hello world.', 5); s = bs(s); s = bs(s);
+check('signed delete merges', body(s), 'Hel\\deleted[id=XL]{lo} world.');
+s = mk('Hello world.', [6, 11]); s = type(s, 'there');
+check('signed replace', body(s), 'Hello \\replaced[id=XL]{there}{world}.');
+s = mk('A \\added[id=JD]{new} B', 'A \\added[id=JD]{new}'.length); s = type(s, 'Z');
+check("another author's addition isn't extended", body(s), 'A \\added[id=JD]{new}\\added[id=XL]{Z} B');
+s = mk('A \\added[id=JD]{new} B', 'A \\added[id=JD]{ne'.length); s = type(s, 'w');
+check('typing inside an addition stays plain', body(s), 'A \\added[id=JD]{neww} B');
+check('author read back', findReviewItems(mk('A \\deleted[id=XL]{x} B')).map((i) => i.author).join(','), 'XL');
+setReviewAuthor('');
 console.log(fail ? `${fail} FAILED` : 'all passed');
 if (fail) process.exit(1);

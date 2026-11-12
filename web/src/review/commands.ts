@@ -1,6 +1,6 @@
 import type { EditorView } from '@codemirror/view';
 import { EditorSelection } from '@codemirror/state';
-import { OUTLINE_MACRO, reviewAction } from './model.ts';
+import { authorOpt, OUTLINE_MACRO, reviewAction, setReviewAuthor } from './model.ts';
 import { unsafeAt, unsafeRange, reviewNotice, REASONS } from './track.ts';
 
 export type CommentPrefs = {
@@ -17,6 +17,7 @@ let onPrefsChange: (p: CommentPrefs) => void = () => {};
 
 export function setCommentPrefs(p: CommentPrefs, onChange?: (p: CommentPrefs) => void) {
   prefs = p;
+  setReviewAuthor(p.initials); // tracked changes are signed with them too
   if (onChange) onPrefsChange = onChange;
 }
 export const getCommentPrefs = () => prefs;
@@ -25,6 +26,20 @@ const fail = (why: string) => {
   reviewNotice((REASONS[why] ?? why).replace(/tracked|tracking/g, (w) => (w === 'tracked' ? 'commented' : 'commenting')));
   return true;
 };
+
+/**
+ * Make sure your initials are set (asking once if not), then run `then`. Resolves to false if the
+ * dialog was cancelled. An empty answer is allowed: changes are then simply not signed.
+ */
+export async function withInitials(action: string, then: () => void): Promise<boolean> {
+  if (!prefs.initials) {
+    const answer = await askInitials(action);
+    if (answer === null) return false;
+    if (answer) { prefs = { ...prefs, initials: answer }; setReviewAuthor(answer); onPrefsChange(prefs); }
+  }
+  then();
+  return true;
+}
 
 /**
  * Ask for the initials notes are signed with. An in-page dialog, not window.prompt(): the desktop
@@ -38,7 +53,7 @@ function askInitials(action = 'Add note'): Promise<string | null> {
   d.innerHTML = `
     <div class="pd-header"><h2 id="initials-dialog-title">Your initials</h2></div>
     <form class="pd-section" method="dialog">
-      <p class="pd-note">Notes and outlines are signed with them, e.g. \\${prefs.macro}{XL}{…}. You can change them later in the review panel.</p>
+      <p class="pd-note">Notes, outlines and tracked changes are signed with them, e.g. \\${prefs.macro}{XL}{…} or \\deleted[id=XL]{…}. You can change them later in the review panel.</p>
       <div class="pd-path">
         <input name="initials" type="text" placeholder="XL" spellcheck="false" autocomplete="off" aria-label="Initials" />
       </div>
@@ -149,16 +164,18 @@ export function addOutline(view: EditorView): boolean {
  * Suggest an edit to the selection: it becomes \replaced{<new>}{<old>} with the new text selected,
  * so typing replaces it (typing there is your own suggestion, never tracked again).
  */
-export function suggestEdit(view: EditorView): boolean {
+export function suggestEdit(view: EditorView, asked = false): boolean {
   const { state } = view;
   const r = state.selection.main;
   if (r.empty) return false;
+  if (!prefs.initials && !asked) { void withInitials('Suggest edit', () => suggestEdit(view, true)).then(() => view.focus()); return true; }
   const why = unsafeRange(state, r.from, r.to);
   if (why) return fail(why);
   const text = state.sliceDoc(r.from, r.to);
-  const start = r.from + '\\replaced{'.length;
+  const prefix = `\\replaced${authorOpt()}{`;
+  const start = r.from + prefix.length;
   view.dispatch({
-    changes: { from: r.from, to: r.to, insert: `\\replaced{${text}}{${text}}` },
+    changes: { from: r.from, to: r.to, insert: `${prefix}${text}}{${text}}` },
     selection: EditorSelection.range(start, start + text.length),
     annotations: reviewAction.of(true),
     userEvent: 'review.suggest',
@@ -169,13 +186,14 @@ export function suggestEdit(view: EditorView): boolean {
 }
 
 /** Mark the selection as deleted (\deleted{…}), as tracked changes would. */
-export function suggestDeletion(view: EditorView): boolean {
+export function suggestDeletion(view: EditorView, asked = false): boolean {
   const { state } = view;
   const r = state.selection.main;
   if (r.empty) return false;
+  if (!prefs.initials && !asked) { void withInitials('Strike out', () => suggestDeletion(view, true)).then(() => view.focus()); return true; }
   const why = unsafeRange(state, r.from, r.to);
   if (why) return fail(why);
-  const insert = `\\deleted{${state.sliceDoc(r.from, r.to)}}`;
+  const insert = `\\deleted${authorOpt()}{${state.sliceDoc(r.from, r.to)}}`;
   view.dispatch({
     changes: { from: r.from, to: r.to, insert },
     selection: EditorSelection.cursor(r.from + insert.length),

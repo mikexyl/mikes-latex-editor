@@ -9,7 +9,7 @@ import { api, setProjectRoot, rememberWindowProject, rememberedWindowProject, Co
 import { editorExtensions, createState, goToLine, setModes, supportsVisual, type Modes } from './editor.ts';
 import { ReviewPanel, type ReviewSource } from './review/panel.ts';
 import { findIncludes } from './review/model.ts';
-import { addComment, addOutline, suggestDeletion, setCommentPrefs, type CommentPrefs } from './review/commands.ts';
+import { addComment, addOutline, suggestDeletion, setCommentPrefs, withInitials, type CommentPrefs } from './review/commands.ts';
 import { compareField, setCompareBase } from './compare/diff.ts';
 import { setAssetBase } from './visual/widgets.ts';
 import { setIncludeHost, includeHeights } from './visual/includes.ts';
@@ -957,8 +957,10 @@ $('mode-toggle').addEventListener('click', (e) => {
 
 // ---------- review: track changes, comments, panel ----------
 
-$('track-toggle').onclick = () => {
+$('track-toggle').onclick = async () => {
   if (!current) return;
+  // Changes are signed with your initials: ask for them the first time tracking is turned on.
+  if (!tracking && !(await withInitials('Track changes', () => {}))) { view.focus(); return; }
   tracking = !tracking;
   store.set(`track:${project.root}`, tracking ? '1' : '0');
   applyModes();

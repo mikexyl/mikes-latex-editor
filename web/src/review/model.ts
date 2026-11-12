@@ -34,6 +34,18 @@ export type ReviewItem = {
   quote?: { from: number; to: number }; // note: the paper text it's about, \note[this]{..}{..}
 };
 
+/**
+ * Who changes are signed by: your initials (from the comment settings), written as
+ * \added[id=XL]{..}, the `changes` package's syntax. Empty: changes aren't signed.
+ */
+let reviewAuthor = '';
+export function setReviewAuthor(initials: string) {
+  reviewAuthor = initials.replace(/[\[\]{}%\\,=#$&^_~]/g, '').trim();
+}
+export const getReviewAuthor = () => reviewAuthor;
+/** The `[id=XL]` option for a new change, or '' when unsigned. */
+export const authorOpt = () => (reviewAuthor ? `[id=${reviewAuthor}]` : '');
+
 /** Marks transactions made by review actions (accept/reject/comment), which are never tracked. */
 export const reviewAction = Annotation.define<boolean>();
 
