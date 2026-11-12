@@ -402,6 +402,7 @@ ins.rv-added, del.rv-deleted { padding: 0 2px; border-radius: 2px; }
 .fv-image.fv-vector { width: 100%; }
 .fv-vector img { width: 100%; object-fit: contain; }
 .editor-pane.viewing #track-toggle, .editor-pane.viewing #comment-btn,
+.editor-pane.viewing #strike-btn, .editor-pane.viewing #outline-btn,
 .editor-pane.viewing #review-toggle, .editor-pane.viewing #mode-toggle { display: none; }
 .editor-row .editor { flex: 1; min-width: 0; }
 .review {
@@ -907,3 +908,31 @@ body.zen .editor-pane { background: var(--panel); }
 .rv-outline-author { color: var(--outline-strong); font-weight: 700; }
 .review-tag-outline { color: var(--outline-strong); }
 .pd-footer .pd-note { flex: 1; }
+
+/* ---------- Markdown files, rendered in the file viewer ---------- */
+.editor-pane.viewing #md-preview-btn { display: none; }
+.file-viewer.fv-markdown #fv-out, .file-viewer.fv-markdown #fv-fit, .file-viewer.fv-markdown #fv-in { display: none; }
+.file-viewer.fv-markdown .fv-body { background: var(--panel); display: block; }
+.md-body {
+  max-width: 46em; margin: 0 auto; padding: 24px 28px 64px;
+  font-family: var(--sans); font-size: var(--editor-font-size, 16px); line-height: 1.6; color: var(--text);
+  overflow-wrap: anywhere;
+}
+.md-body h1, .md-body h2, .md-body h3, .md-body h4 { line-height: 1.25; margin: 1.4em 0 0.5em; }
+.md-body h1 { font-size: 1.8em; border-bottom: 1px solid var(--border); padding-bottom: 0.25em; }
+.md-body h2 { font-size: 1.4em; border-bottom: 1px solid var(--border); padding-bottom: 0.2em; }
+.md-body h3 { font-size: 1.15em; }
+.md-body > :first-child { margin-top: 0; }
+.md-body p, .md-body ul, .md-body ol, .md-body blockquote, .md-body pre, .md-body table { margin: 0 0 1em; }
+.md-body a { color: var(--accent); }
+.md-body code { font-family: var(--mono, ui-monospace, monospace); font-size: 0.88em; background: var(--surface); padding: 0.1em 0.35em; border-radius: 4px; }
+.md-body pre { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; overflow: auto; }
+.md-body pre code { background: none; padding: 0; font-size: 0.85em; }
+.md-body blockquote { border-left: 3px solid var(--border-strong); color: var(--muted); padding: 0 0 0 12px; margin-left: 0; }
+.md-body table { border-collapse: collapse; display: block; overflow: auto; }
+.md-body th, .md-body td { border: 1px solid var(--border); padding: 4px 10px; }
+.md-body th { background: var(--surface); }
+.md-body img { max-width: 100%; }
+.md-body hr { border: 0; border-top: 1px solid var(--border); margin: 1.5em 0; }
+.md-body input[type=checkbox] { margin-right: 6px; }
+.md-math[data-display="1"] { text-align: center; margin: 0 0 1em; overflow-x: auto; }

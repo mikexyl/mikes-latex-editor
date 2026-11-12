@@ -169,6 +169,7 @@
         <div class="pane-header">
           <button class="back-to-main" id="back-to-main" hidden></button>
           <span id="current-file">No file open</span>
+          <button id="md-preview-btn" hidden title="Show this Markdown file rendered">Preview</button>
           <button class="reload-btn" id="reload-btn" title="Reload from disk: pick up changes made outside the editor" aria-label="Reload from disk">↻</button>
           <span class="spacer"></span>
           <button id="track-toggle" class="track-toggle" aria-pressed="false" title="Record edits as tracked changes">
@@ -199,6 +200,7 @@
               <button id="fv-in" title="Zoom in" aria-label="Zoom in">+</button>
               <span class="fv-info" id="fv-info"></span>
               <span class="spacer"></span>
+              <button id="fv-edit" hidden title="Edit the Markdown source">Edit</button>
               <button class="link" id="fv-close" title="Back to the editor (Esc)">✕ Close</button>
             </div>
             <div class="fv-body" id="fv-body"></div>

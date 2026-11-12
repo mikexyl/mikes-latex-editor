@@ -60,7 +60,8 @@ packages, or switches to the system's TeX.
   double-clicking the PDF jumps to the source, across `\input` files.
 - **Compare with a git commit**: see what changed since then, plus a latexdiff PDF if
   [latexdiff](https://ctan.org/pkg/latexdiff) is installed.
-- **View figures**: images and PDFs in the project open right in the editor.
+- **View figures and notes**: images, PDFs and Markdown files (rendered, with math) open right in
+  the editor; **Edit** switches a Markdown file to its source, **Preview** back.
 - **Reload from disk** (↻) after git or another tool changed files; edits autosave.
 - **Several windows**, each with its own project: the dock's *New Window*, Ctrl+Shift+N (⌘⇧N on
   the Mac), or *Open in new window* in the project picker.

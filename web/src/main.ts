@@ -16,10 +16,11 @@ import { collectMacros, setProjectMacros } from './visual/math.ts';
 import { refreshVisual } from './visual/decorations.ts';
 import { PdfViewer } from './pdf.ts';
 import { FileViewer, VIEWABLE } from './viewer.ts';
+import { MARKDOWN } from './markdown.ts';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
-const TEXT_EXT = /\.(tex|bib|sty|cls|bst|bbx|cbx|dtx|ins|cfg|def|txt|md|latexmkrc)$|(^|\/)(latexmkrc|Makefile)$/i;
+const TEXT_EXT = /\.(tex|bib|sty|cls|bst|bbx|cbx|dtx|ins|cfg|def|txt|md|markdown|latexmkrc)$|(^|\/)(latexmkrc|Makefile)$/i;
 const AUTOSAVE_MS = 1200;
 
 type OpenFile = {
@@ -88,7 +89,21 @@ $('editor').addEventListener('vc-open-file', (e) => {
 view.contentDOM.setAttribute('aria-label', 'LaTeX source');
 const pdf = new PdfViewer($('pdf'));
 // Figures (images, PDFs) open in the editor pane, over the editor.
-const viewer = new FileViewer(() => hideViewer());
+const viewer = new FileViewer({
+  onClose: () => hideViewer(),
+  // What the editor has, if the file is open there (edits not autosaved yet included).
+  markdownText: async (path) => {
+    const f = open.get(path);
+    return f ? liveState(f).doc.toString() : (await api.read(path)).content;
+  },
+  onEdit: (path) => { ensureEditorVisible(); void openFile(path); },
+  openPath: (path) => {
+    if (!project.tree.some((e) => e.path === path && e.type === 'file')) return setStatus(`File not found: ${path}`, true);
+    if (VIEWABLE.test(path)) showViewer(path);
+    else if (TEXT_EXT.test(path)) void openFile(path);
+    else setStatus(`Can't open ${path} here.`, true);
+  },
+});
 function showViewer(path: string) {
   ensureEditorVisible();
   void viewer.show(path);
@@ -914,10 +929,13 @@ $('zoom-fit').onclick = () => pdf.fit();
 
 function renderModeToggle() {
   const enabled = !!current && supportsVisual(current.path);
+  $('md-preview-btn').hidden = !current || !MARKDOWN.test(current.path);
   const track = $<HTMLButtonElement>('track-toggle');
   track.setAttribute('aria-pressed', String(tracking));
   track.disabled = !enabled;
   $<HTMLButtonElement>('comment-btn').disabled = !enabled;
+  $<HTMLButtonElement>('strike-btn').disabled = !enabled;
+  $<HTMLButtonElement>('outline-btn').disabled = !enabled;
   $('editor').classList.toggle('tracking', tracking && enabled);
   for (const b of $('mode-toggle').querySelectorAll<HTMLButtonElement>('button')) {
     const active = enabled ? (b.dataset.mode === 'visual') === visualMode : b.dataset.mode === 'source';
@@ -949,6 +967,7 @@ $('track-toggle').onclick = () => {
 };
 // In the editor being typed in: often an inline \input file, not the main one. Clicking mustn't
 // take focus from it.
+$('md-preview-btn').onclick = () => { if (current) showViewer(current.path); };
 $('comment-btn').onmousedown = (e) => e.preventDefault();
 $('comment-btn').onclick = () => { addComment(activeEditor()?.v ?? view); };
 $('strike-btn').onmousedown = (e) => e.preventDefault();

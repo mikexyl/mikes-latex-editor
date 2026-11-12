@@ -1,10 +1,22 @@
-// Viewer for the project's figure files (images and PDFs), shown over the editor in the editor
-// pane. The editor stays underneath, untouched, so closing the viewer returns to it as it was.
+// Viewer for the project's figure files (images and PDFs) and Markdown files (rendered), shown over
+// the editor in the editor pane. The editor stays underneath, untouched, so closing the viewer
+// returns to it as it was.
 import { PdfViewer } from './pdf.ts';
 import { withRoot } from './api.ts';
+import { MARKDOWN, renderMarkdown } from './markdown.ts';
 
 /** Files the viewer can show. Others (EPS, ...) stay unopenable in the file tree. */
-export const VIEWABLE = /\.(pdf|png|jpe?g|gif|svg|webp|bmp|avif)$/i;
+export const VIEWABLE = /\.(pdf|png|jpe?g|gif|svg|webp|bmp|avif|md|markdown)$/i;
+
+export type ViewerHooks = {
+  onClose: () => void;
+  /** A Markdown file's current text (the editor's, if it's open there with unsaved edits). */
+  markdownText: (path: string) => Promise<string>;
+  /** Edit the shown (Markdown) file's source. */
+  onEdit: (path: string) => void;
+  /** Open a project file a Markdown link points to. */
+  openPath: (path: string) => void;
+};
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -16,11 +28,12 @@ export class FileViewer {
   private zoom = 1; // 1 = fit
   private fitWidth = 0;
 
-  constructor(private onClose: () => void) {
+  constructor(private hooks: ViewerHooks) {
     $('fv-in').onclick = () => this.zoomBy(1.25);
     $('fv-out').onclick = () => this.zoomBy(1 / 1.25);
     $('fv-fit').onclick = () => this.setZoom(1);
-    $('fv-close').onclick = () => this.onClose();
+    $('fv-close').onclick = () => this.hooks.onClose();
+    $('fv-edit').onclick = () => { if (this.path) this.hooks.onEdit(this.path); };
   }
 
   async show(path: string) {
@@ -28,8 +41,24 @@ export class FileViewer {
     this.path = path;
     $('file-viewer').hidden = false;
     $('fv-info').textContent = '';
+    const markdown = MARKDOWN.test(path);
+    $('file-viewer').classList.toggle('fv-markdown', markdown);
+    $('fv-edit').hidden = !markdown;
     const url = withRoot(`/api/asset?path=${encodeURIComponent(path)}&t=${Date.now()}`);
     const body = $('fv-body');
+    if (markdown) {
+      const page = document.createElement('article');
+      page.className = 'md-body';
+      body.append(page);
+      try {
+        const text = await this.hooks.markdownText(path);
+        if (this.path !== path) return;
+        renderMarkdown(page, text, path, { openPath: this.hooks.openPath });
+      } catch (e) {
+        this.fail(`Couldn't open ${path}: ${(e as Error).message}`);
+      }
+      return;
+    }
     if (/\.pdf$/i.test(path)) {
       const box = document.createElement('div');
       box.className = 'pdf fv-pdf';
