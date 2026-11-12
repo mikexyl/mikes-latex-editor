@@ -3,7 +3,8 @@
 import { basicSetup } from 'codemirror';
 import { Compartment, EditorSelection, EditorState, Prec, type Extension } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
-import { StreamLanguage } from '@codemirror/language';
+import { HighlightStyle, StreamLanguage, syntaxHighlighting } from '@codemirror/language';
+import { tags as t } from '@lezer/highlight';
 import { stex } from '@codemirror/legacy-modes/mode/stex';
 import { latex } from './visual/language.ts';
 import { visualDecorations, enterNewParagraph } from './visual/decorations.ts';
@@ -22,6 +23,18 @@ const theme = EditorView.theme({
   '.cm-gutters': { background: 'var(--surface)', borderRight: '1px solid var(--border)', color: 'var(--muted)' },
   '.cm-activeLineGutter': { background: 'var(--hover)' },
 });
+
+// Syntax colors as CSS variables, so the dark theme (style.css) can recolor them. The fallbacks are
+// CodeMirror's default light colors, which this replaces for these tags.
+const highlight = syntaxHighlighting(HighlightStyle.define([
+  { tag: t.keyword, color: 'var(--hl-keyword, #708)' },
+  { tag: t.tagName, color: 'var(--hl-command, #085)' },
+  { tag: [t.string, t.special(t.string)], color: 'var(--hl-math, #a11)' },
+  { tag: [t.literal, t.number], color: 'var(--hl-symbol, #164)' },
+  { tag: t.comment, color: 'var(--hl-comment, #940)' },
+  { tag: [t.url, t.atom, t.labelName], color: 'var(--hl-url, #219)' },
+  { tag: t.attributeValue, color: 'var(--hl-attr, inherit)' },
+]));
 
 export type EditorHooks = {
   onChange: () => void;
@@ -46,6 +59,7 @@ export function editorExtensions(hooks: EditorHooks): Extension[] {
     basicSetup,
     EditorView.lineWrapping,
     theme,
+    highlight,
     Prec.high(keymap.of([
       { key: 'Mod-s', preventDefault: true, run: () => (hooks.onSave(), true) },
       { key: 'Mod-Alt-m', preventDefault: true, run: addComment },

@@ -33,7 +33,31 @@ function applyFont(size: number, onLayout: () => void) {
   onLayout();
 }
 
+type Theme = 'system' | 'light' | 'dark';
+const systemDark = matchMedia('(prefers-color-scheme: dark)');
+
+/** Light or dark colors (style.css, :root[data-theme="dark"]); "system" follows the OS setting. */
+function applyTheme(theme: Theme) {
+  const dark = theme === 'dark' || (theme === 'system' && systemDark.matches);
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  for (const b of $('set-theme').querySelectorAll<HTMLButtonElement>('button')) {
+    b.setAttribute('aria-pressed', String(b.dataset.theme === theme));
+  }
+}
+
 export function initSettings(opts: { onLayoutChange: () => void }) {
+  const savedTheme = store.get('theme');
+  let theme: Theme = savedTheme === 'light' || savedTheme === 'dark' ? savedTheme : 'system';
+  applyTheme(theme);
+  systemDark.addEventListener('change', () => { if (theme === 'system') applyTheme(theme); });
+  $('set-theme').addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
+    if (!b) return;
+    theme = b.dataset.theme as Theme;
+    store.set('theme', theme);
+    applyTheme(theme);
+  });
+
   const savedFont = Number(store.get('font-size'));
   let font = savedFont >= MIN_FONT && savedFont <= MAX_FONT ? savedFont : DEFAULT_FONT;
   const setFont = (s: number) => {

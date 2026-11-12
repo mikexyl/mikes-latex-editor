@@ -9,6 +9,14 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#2f6f4f" />
     <link rel="stylesheet" href="/src/style.css" />
+    <script>
+      // Theme before the first paint, so a dark window doesn't flash light (settings.ts keeps it up to date).
+      try {
+        var t = localStorage.getItem('theme');
+        var dark = t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      } catch (e) { /* storage unavailable: light */ }
+    </script>
   </head>
   <body>
     <header class="topbar">
@@ -40,6 +48,14 @@
       <button class="settings-btn" id="settings-btn" aria-expanded="false" aria-controls="settings" title="Settings">⚙</button>
       <div class="settings-popover" id="settings" role="dialog" aria-label="Settings" hidden>
         <div class="settings-title">Settings</div>
+        <section class="setting">
+          <div class="setting-row"><span>Theme</span></div>
+          <div class="setting-presets setting-theme" id="set-theme">
+            <button data-theme="system">System</button>
+            <button data-theme="light">Light</button>
+            <button data-theme="dark">Dark</button>
+          </div>
+        </section>
         <section class="setting">
           <div class="setting-row">
             <label for="set-font">Font size</label>

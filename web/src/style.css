@@ -12,6 +12,43 @@
   --error: #b42318;
   --warning: #9a6700;
   --pdf-bg: #e9e9e6;
+  --accent-soft: #e3ece6;
+  --border-strong: #c9c9c4;
+  --badge-bg: #e4e4e0;
+  --banner-bg: #fff4d6;
+  --banner-border: #ecd9a0;
+  --info-bg: #e8f0fe;
+  --info-border: #c9d8f5;
+  --info-text: #1f3f7a;
+  --link: #1f5fbf;
+  --link-underline: #9db8e4;
+  --ref-bg: #edf5ef;
+  --ref-border: #d3e6d8;
+  --ref-text: #2f6f4f;
+  --file-bg: #f6f0e6;
+  --file-border: #e8dcc6;
+  --file-text: #7a5a24;
+  --missing-bg: #fdeeee;
+  --missing-border: #f2c9c6;
+  --comment-text: #6b5200;
+  --deleted-border: #f0b4ae;
+  --tag-replaced: #8a4b00;
+  --tag-comment: #8a6d00;
+  --df-ins-bg: #dde9ff;
+  --df-ins-line: #8fb0ec;
+  --df-del-bg: #ffedd5;
+  --df-del-text: #9a3412;
+  --df-del-line: #c2410c;
+  --latex-comment: #9a9a94;
+  --note-bg: #fdecec;
+  --note-border: #f2b8b5;
+  --note-text: #a1281e;
+  --note-strong: #c0362c;
+  --note-strong-text: #ffffff;
+  --primary-bg: #eef2ef;
+  --primary-border: #cdd8d1;
+  --primary-text: #2c5843;
+  --primary-hover: #e4ebe6;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, "Ubuntu Mono", "DejaVu Sans Mono", monospace;
   --files-w: 220px;
@@ -64,8 +101,8 @@ button.link:hover { color: var(--text); text-decoration: underline; }
   align-items: center;
   gap: 10px;
   padding: 6px 12px;
-  background: #fff4d6;
-  border-bottom: 1px solid #ecd9a0;
+  background: var(--banner-bg);
+  border-bottom: 1px solid var(--banner-border);
 }
 .banner[hidden] { display: none; }
 .banner span { flex: 1; }
@@ -112,7 +149,7 @@ button.link:hover { color: var(--text); text-decoration: underline; }
 .files .item.dir { color: var(--muted); cursor: default; font-weight: 600; }
 .files .item.dir:hover { background: none; }
 .files .item.binary { color: var(--muted); cursor: default; }
-.files .item.active { background: #e3ece6; color: var(--accent); font-weight: 600; }
+.files .item.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .files .item .dirty { color: var(--accent); margin-left: 4px; }
 
 .editor-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--panel); }
@@ -199,7 +236,7 @@ button.link:hover { color: var(--text); text-decoration: underline; }
 .vc-fmt-medium { font-weight: 500; }
 .vc-fmt-sup { vertical-align: super; font-size: 0.75em; }
 .vc-fmt-sub { vertical-align: sub; font-size: 0.75em; }
-.vc-link { color: #1f5fbf; text-decoration: underline; text-decoration-color: #9db8e4; }
+.vc-link { color: var(--link); text-decoration: underline; text-decoration-color: var(--link-underline); }
 .vc-footnote { color: var(--muted); font-size: 0.9em; }
 .vc-symbol, .vc-nbsp { white-space: pre; }
 
@@ -214,11 +251,11 @@ button.link:hover { color: var(--text); text-decoration: underline; }
   white-space: nowrap;
   cursor: text;
 }
-.vc-chip-ref { background: #edf5ef; border-color: #d3e6d8; color: #2f6f4f; }
+.vc-chip-ref { background: var(--ref-bg); border-color: var(--ref-border); color: var(--ref-text); }
 .vc-chip-label { background: transparent; border-color: transparent; color: var(--muted); font-size: 11px; }
-.vc-chip-file { background: #f6f0e6; border-color: #e8dcc6; color: #7a5a24; }
+.vc-chip-file { background: var(--file-bg); border-color: var(--file-border); color: var(--file-text); }
 .vc-chip-footnote { background: transparent; border-style: dashed; color: var(--muted); font-size: 11px; }
-.vc-chip-missing { background: #fdeeee; border-color: #f2c9c6; color: var(--error); }
+.vc-chip-missing { background: var(--missing-bg); border-color: var(--missing-border); color: var(--error); }
 
 .vc-math-display { text-align: center; padding: 6px 0; overflow-x: auto; overflow-y: hidden; }
 .vc-math-preview-wrap { padding: 4px 0 8px; }
@@ -274,7 +311,7 @@ span.vc-graphics { display: inline-block; vertical-align: middle; }
 .vc-title { font-size: 1.7em; font-weight: 600; line-height: 1.25; }
 .vc-authors { margin-top: 8px; font-size: 1.05em; }
 .vc-date { margin-top: 4px; color: var(--muted); font-size: 0.95em; }
-.cm-visual .vc-link, .cm-visual .vc-link * { color: #1f5fbf; }
+.cm-visual .vc-link, .cm-visual .vc-link * { color: var(--link); }
 
 /* ---------- review: tracked changes and comments ---------- */
 :root {
@@ -301,7 +338,7 @@ ins.rv-added, del.rv-deleted { padding: 0 2px; border-radius: 2px; }
   border-radius: 10px 10px 10px 2px;
   padding: 1px 7px;
   margin: 0 2px;
-  color: #6b5200;
+  color: var(--comment-text);
   cursor: text;
 }
 .rv-comment::before { content: "💬 "; }
@@ -315,7 +352,7 @@ ins.rv-added, del.rv-deleted { padding: 0 2px; border-radius: 2px; }
   cursor: pointer;
 }
 .rv-accept { color: var(--added-text); border-color: var(--added-line); background: var(--added-bg); }
-.rv-reject { color: var(--deleted-text); border-color: #f0b4ae; background: var(--deleted-bg); }
+.rv-reject { color: var(--deleted-text); border-color: var(--deleted-border); background: var(--deleted-bg); }
 
 /* Toolbar */
 .track-toggle { display: inline-flex; align-items: center; gap: 6px; }
@@ -363,13 +400,13 @@ ins.rv-added, del.rv-deleted { padding: 0 2px; border-radius: 2px; }
   flex-direction: column;
   gap: 4px;
 }
-.review-item:hover { border-color: #c9c9c4; }
+.review-item:hover { border-color: var(--border-strong); }
 .review-meta { display: flex; gap: 6px; align-items: center; font-size: 11px; color: var(--muted); }
 .review-tag { font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
 .review-tag-added { color: var(--added-text); }
 .review-tag-deleted { color: var(--deleted-text); }
-.review-tag-replaced { color: #8a4b00; }
-.review-tag-comment, .review-tag-highlight { color: #8a6d00; }
+.review-tag-replaced { color: var(--tag-replaced); }
+.review-tag-comment, .review-tag-highlight { color: var(--tag-comment); }
 .review-author { font-weight: 600; color: var(--text); }
 .review-line { margin-left: auto; }
 .review-text { font-family: var(--serif); font-size: 14px; overflow-wrap: anywhere; }
@@ -388,19 +425,19 @@ ins.rv-added, del.rv-deleted { padding: 0 2px; border-radius: 2px; }
   align-items: center;
   gap: 10px;
   padding: 4px 10px;
-  background: #e8f0fe;
-  border-bottom: 1px solid #c9d8f5;
-  color: #1f3f7a;
+  background: var(--info-bg);
+  border-bottom: 1px solid var(--info-border);
+  color: var(--info-text);
 }
 .compare-banner[hidden] { display: none; }
 .compare-banner span { flex: 1; }
 /* Distinct from tracked changes (green/red): blue for text added since the commit, orange for removed. */
-.df-ins { background: #dde9ff; box-shadow: inset 0 -2px 0 #8fb0ec; }
+.df-ins { background: var(--df-ins-bg); box-shadow: inset 0 -2px 0 var(--df-ins-line); }
 .df-del {
-  background: #ffedd5;
-  color: #9a3412;
+  background: var(--df-del-bg);
+  color: var(--df-del-text);
   text-decoration: line-through;
-  text-decoration-color: #c2410c;
+  text-decoration-color: var(--df-del-line);
   white-space: pre-wrap;
   border-radius: 2px;
 }
@@ -417,14 +454,14 @@ ins.rv-added, del.rv-deleted { padding: 0 2px; border-radius: 2px; }
   animation: pdf-flash 1.8s ease-out forwards;
 }
 @keyframes pdf-flash { 0%, 60% { opacity: 1; } 100% { opacity: 0; } }
-.df-hidden-change { color: #1f5fbf; font: 700 11px var(--sans); vertical-align: super; margin: 0 1px; cursor: help; }
+.df-hidden-change { color: var(--link); font: 700 11px var(--sans); vertical-align: super; margin: 0 1px; cursor: help; }
 
 /* ---------- visual mode: templates (IEEE etc.) ---------- */
-.cm-visual .vc-comment, .cm-visual .vc-comment * { color: #9a9a94 !important; font-family: var(--mono); font-size: 12px; font-style: normal; }
+.cm-visual .vc-comment, .cm-visual .vc-comment * { color: var(--latex-comment) !important; font-family: var(--mono); font-size: 12px; font-style: normal; }
 .vc-comment-fold-wrap { padding: 2px 0; contain: inline-size; }
 .vc-comment-fold {
   font: 11px/1.5 var(--mono);
-  color: #9a9a94;
+  color: var(--latex-comment);
   border-left: 2px solid var(--border);
   padding: 0 8px;
   cursor: pointer;
@@ -471,23 +508,23 @@ ins.rv-added, del.rv-deleted { padding: 0 2px; border-radius: 2px; }
 
 /* ---------- note macro: \note{XL}{...} ---------- */
 .rv-note {
-  background: #fdecec;
-  border-color: #f2b8b5;
-  color: #a1281e;
+  background: var(--note-bg);
+  border-color: var(--note-border);
+  color: var(--note-text);
 }
 .rv-note::before { content: none; }
 .rv-note .rv-comment-author {
-  background: #c0362c;
-  color: #fff;
+  background: var(--note-strong);
+  color: var(--note-strong-text);
   border-radius: 6px;
   padding: 0 5px;
   font-size: 10px;
   font-weight: 700;
   margin-right: 5px;
 }
-.rv-note-text { background: #fdecec; color: #a1281e; }
-.rv-note-author { color: #c0362c; font-weight: 700; }
-.review-tag-note { color: #c0362c; }
+.rv-note-text { background: var(--note-bg); color: var(--note-text); }
+.rv-note-author { color: var(--note-strong); font-weight: 700; }
+.review-tag-note { color: var(--note-strong); }
 
 .review-content { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .review-settings { border-top: 1px solid var(--border); padding: 6px 10px; font-size: 12px; }
@@ -499,7 +536,7 @@ ins.rv-added, del.rv-deleted { padding: 0 2px; border-radius: 2px; }
 /* ---------- project picker ---------- */
 button.project-name { border: 1px solid transparent; background: none; font-weight: 600; padding: 3px 8px; margin-left: -8px; }
 button.project-name:hover { border-color: var(--border); background: var(--hover); }
-.banner#switched-banner { background: #fdecea; border-bottom-color: #f2c9c6; }
+.banner#switched-banner { background: var(--missing-bg); border-bottom-color: var(--missing-border); }
 
 .project-dialog {
   width: min(640px, calc(100vw - 32px));
@@ -533,9 +570,9 @@ button.project-name:hover { border-color: var(--border); background: var(--hover
 .pd-recent-item.current .pd-recent-name { color: var(--accent); }
 .pd-recent-item.missing { opacity: 0.6; }
 .pd-forget { font-size: 12px; }
-.pd-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 0 5px; border-radius: 4px; background: #e3ece6; color: var(--accent); white-space: nowrap; }
-.pd-badge.missing { background: #fdecea; color: var(--error); }
-.pd-badge.tex { background: #eef2f7; color: #34507a; }
+.pd-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 0 5px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+.pd-badge.missing { background: var(--missing-bg); color: var(--error); }
+.pd-badge.tex { background: var(--chip-bg); color: var(--chip-text); }
 .pd-path { display: flex; gap: 6px; }
 .pd-path input { flex: 1; font: 13px var(--mono); padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; min-width: 0; }
 .pd-dir-name { font-family: var(--mono); font-size: 12.5px; }
@@ -561,11 +598,11 @@ button.project-name:hover { border-color: var(--border); background: var(--hover
 
 /* ---------- \input files inline (nested editors) ---------- */
 .vc-include { padding: 2px 0 6px; contain: inline-size; }
-.vc-include-body { border-left: 3px solid #e8dcc6; padding-left: 12px; }
+.vc-include-body { border-left: 3px solid var(--file-border); padding-left: 12px; }
 .vc-include-message { color: var(--muted); font: 12px var(--sans); padding: 2px 0 2px 12px; }
 .vc-include-header {
   display: flex; align-items: center; gap: 8px;
-  font: 11px/1.6 var(--mono); color: #7a5a24;
+  font: 11px/1.6 var(--mono); color: var(--file-text);
 }
 .vc-include-header .link { font-size: 11px; }
 /* Styled through the container: CodeMirror manages the nested editor's own class list. */
@@ -624,8 +661,8 @@ button.problems-summary:hover { text-decoration: none; color: var(--text); }
   --active-bg: #e8e8e4;       /* selected segmented buttons, active file */
   --active-text: var(--text);
 }
-button.primary { background: #eef2ef; border-color: #cdd8d1; color: #2c5843; }
-button.primary:hover { filter: none; background: #e4ebe6; }
+button.primary { background: var(--primary-bg); border-color: var(--primary-border); color: var(--primary-text); }
+button.primary:hover { filter: none; background: var(--primary-hover); }
 button.primary:disabled { opacity: 0.6; }
 .mode-toggle button[aria-pressed="true"],
 .setting-presets button[aria-pressed="true"] {
@@ -634,7 +671,7 @@ button.primary:disabled { opacity: 0.6; }
 .track-toggle[aria-pressed="true"] { color: var(--text); border-color: var(--border); }
 .track-toggle[aria-pressed="true"] .switch { background: var(--track); }
 .editor.tracking { box-shadow: inset 2px 0 0 rgb(143 154 148 / 0.45); }
-.badge { background: #e4e4e0; color: var(--muted); }
+.badge { background: var(--badge-bg); color: var(--muted); }
 .files .item.active { background: var(--active-bg); color: var(--active-text); }
 .files .item .dirty { color: var(--muted); }
 
@@ -720,3 +757,91 @@ body.zen .editor-pane { background: var(--panel); }
 .tx-actions { display: flex; gap: 6px; }
 .problems li .fix { margin-left: 8px; font-size: 12px; padding: 0 8px; }
 .problems li .hint { color: var(--muted); margin-left: 6px; }
+
+/* ---------- dark theme (⚙ Theme; "System" follows the OS). settings.ts sets data-theme. ---------- */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #1b1c1e;
+  --surface: #202124;
+  --panel: #26272a;
+  --border: #3a3b3f;
+  --border-strong: #55565b;
+  --hover: #2f3034;
+  --text: #e4e4e0;
+  --muted: #9a9ea6;
+  --accent: #6fbf8e;
+  --accent-text: #10241a;
+  --accent-soft: #23362b;
+  --error: #f4867c;
+  --warning: #e0b44c;
+  --pdf-bg: #141517;
+  --badge-bg: #3a3b3f;
+  --banner-bg: #3a321c;
+  --banner-border: #5c4d24;
+  --info-bg: #1d2a40;
+  --info-border: #304668;
+  --info-text: #a9c6f5;
+  --link: #7fb0ff;
+  --link-underline: #41608f;
+  --chip-bg: #222c3a;
+  --chip-border: #33445c;
+  --chip-text: #a9c0e3;
+  --ref-bg: #1f3227;
+  --ref-border: #2f4d3a;
+  --ref-text: #8fd3a8;
+  --file-bg: #33291a;
+  --file-border: #55452a;
+  --file-text: #d9b77a;
+  --missing-bg: #3d2222;
+  --missing-border: #6a3431;
+  --added-bg: #1d3324;
+  --added-text: #8fd8a5;
+  --added-line: #3f8a57;
+  --deleted-bg: #3d2222;
+  --deleted-text: #f4867c;
+  --deleted-border: #7a3a35;
+  --highlight-bg: #4a4016;
+  --comment-bg: #3a3420;
+  --comment-border: #6b5a26;
+  --comment-text: #e6cf7a;
+  --tag-replaced: #f0a35e;
+  --tag-comment: #e0c25a;
+  --df-ins-bg: #1f3150;
+  --df-ins-line: #4f74b5;
+  --df-del-bg: #3e2a17;
+  --df-del-text: #f5a46a;
+  --df-del-line: #d0703a;
+  --latex-comment: #75777c;
+  --note-bg: #3d2323;
+  --note-border: #6e3633;
+  --note-text: #f3a49c;
+  --note-strong: #e0574b;
+  --note-strong-text: #ffffff;
+  --track: #6f7d76;
+  --active-bg: #34353a;
+  --primary-bg: #24332b;
+  --primary-border: #3b5547;
+  --primary-text: #a5dcbb;
+  --primary-hover: #2b3d33;
+  /* syntax colors (editor.ts) */
+  --hl-keyword: #d7a6f0;
+  --hl-command: #6fd3a4;
+  --hl-math: #f28b82;
+  --hl-symbol: #7fd4b0;
+  --hl-comment: #c99a5b;
+  --hl-url: #8ab4f8;
+}
+/* CodeMirror's own parts are styled for light backgrounds. PDF pages stay white, as printed. */
+:root[data-theme="dark"] .cm-editor .cm-cursor, :root[data-theme="dark"] .cm-editor .cm-dropCursor { border-left-color: var(--text); }
+:root[data-theme="dark"] .cm-editor .cm-selectionBackground { background: #33363d; }
+:root[data-theme="dark"] .cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground,
+:root[data-theme="dark"] .cm-editor .cm-content ::selection { background: #3d4a63; }
+:root[data-theme="dark"] .cm-editor .cm-activeLine { background: rgb(255 255 255 / 0.04); }
+:root[data-theme="dark"] .cm-editor .cm-selectionMatch { background: #3f5a3a; }
+:root[data-theme="dark"] .cm-editor .cm-searchMatch { background: rgb(255 214 0 / 0.22); outline-color: rgb(255 214 0 / 0.4); }
+:root[data-theme="dark"] .cm-editor .cm-panels { background: var(--surface); color: var(--text); border-color: var(--border); }
+:root[data-theme="dark"] .cm-editor .cm-tooltip { background: var(--panel); color: var(--text); border-color: var(--border); }
+:root[data-theme="dark"] .cm-editor .cm-foldPlaceholder { background: var(--hover); border-color: var(--border); color: var(--muted); }
+:root[data-theme="dark"] .cm-editor .cm-textfield { background: var(--panel); color: var(--text); border-color: var(--border); }
+:root[data-theme="dark"] .cm-editor .cm-button { background: var(--panel); background-image: none; color: var(--text); border-color: var(--border); }
+:root[data-theme="dark"] .pdf-page, :root[data-theme="dark"] .pdf-page-wrap { box-shadow: 0 1px 4px rgb(0 0 0 / 0.6); }
