@@ -42,6 +42,20 @@
         <div class="settings-title">Settings</div>
         <section class="setting">
           <div class="setting-row">
+            <label for="set-font">Font size</label>
+            <span class="setting-value" id="set-font-value"></span>
+          </div>
+          <input type="range" id="set-font" min="12" max="26" step="1" />
+          <div class="setting-presets" id="set-font-presets">
+            <button data-size="14">Small</button>
+            <button data-size="16">Default</button>
+            <button data-size="18">Large</button>
+            <button data-size="21">Larger</button>
+          </div>
+          <p class="setting-hint">Text in the editor. Source mode is shown slightly smaller; the PDF isn't affected.</p>
+        </section>
+        <section class="setting">
+          <div class="setting-row">
             <label for="set-width">Text width (visual mode)</label>
             <span class="setting-value" id="set-width-value"></span>
           </div>

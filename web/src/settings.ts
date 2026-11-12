@@ -19,7 +19,35 @@ function applyWidth(width: number, onLayout: () => void) {
   onLayout();
 }
 
+const DEFAULT_FONT = 16; // px, visual mode; source mode is 2px smaller
+const MIN_FONT = 12, MAX_FONT = 26;
+
+/** Editor font size in px (visual mode; source mode follows at 2px less, see style.css). */
+function applyFont(size: number, onLayout: () => void) {
+  document.documentElement.style.setProperty('--editor-font-size', `${size}px`);
+  $<HTMLInputElement>('set-font').value = String(size);
+  $('set-font-value').textContent = `${size} px`;
+  for (const b of $('set-font-presets').querySelectorAll<HTMLButtonElement>('button')) {
+    b.setAttribute('aria-pressed', String(Number(b.dataset.size) === size));
+  }
+  onLayout();
+}
+
 export function initSettings(opts: { onLayoutChange: () => void }) {
+  const savedFont = Number(store.get('font-size'));
+  let font = savedFont >= MIN_FONT && savedFont <= MAX_FONT ? savedFont : DEFAULT_FONT;
+  const setFont = (s: number) => {
+    font = Math.min(MAX_FONT, Math.max(MIN_FONT, Math.round(s)));
+    store.set('font-size', String(font));
+    applyFont(font, opts.onLayoutChange);
+  };
+  applyFont(font, opts.onLayoutChange);
+  $<HTMLInputElement>('set-font').addEventListener('input', (e) => setFont(Number((e.target as HTMLInputElement).value)));
+  $('set-font-presets').addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest('button');
+    if (b) setFont(Number(b.dataset.size));
+  });
+
   const saved = Number(store.get('visual-width'));
   let width = Number.isFinite(saved) && store.get('visual-width') !== null ? saved : DEFAULT_WIDTH;
   const set = (w: number) => {

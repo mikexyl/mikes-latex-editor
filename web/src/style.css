@@ -177,7 +177,7 @@ button.link:hover { color: var(--text); text-decoration: underline; }
 }
 
 .cm-visual .cm-scroller { font-family: var(--serif); line-height: 1.65; }
-.cm-visual .cm-content { font-size: 16px; max-width: var(--visual-width, 44em); padding: 20px 28px 40vh; }
+.cm-visual .cm-content { font-size: var(--editor-font-size, 16px); max-width: var(--visual-width, 44em); padding: 20px 28px 40vh; }
 .cm-visual .cm-gutters { font-family: var(--mono); font-size: 11px; }
 .cm-visual .vc-preamble-line { font-family: var(--mono); font-size: 13px; background: var(--surface); }
 

@@ -15,7 +15,8 @@ import { noteMacroFacet } from './review/model.ts';
 import { selectionToolbar } from './review/selection-toolbar.ts';
 
 const theme = EditorView.theme({
-  '&': { height: '100%', fontSize: '14px' },
+  // Follows the Font size setting (settings.ts): 2px under visual mode's size.
+  '&': { height: '100%', fontSize: 'calc(var(--editor-font-size, 16px) - 2px)' },
   '.cm-scroller': { fontFamily: 'var(--mono)', lineHeight: '1.6' },
   '.cm-content': { maxWidth: '52rem', padding: '12px 0' },
   '.cm-gutters': { background: 'var(--surface)', borderRight: '1px solid var(--border)', color: 'var(--muted)' },
