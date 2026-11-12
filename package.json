@@ -5,7 +5,7 @@
   "description": "A local LaTeX editor for reviewing and revising papers, with an Overleaf-style visual mode",
   "author": "mikexyl",
   "license": "AGPL-3.0-only",
-  "homepage": "https://github.com/mikexyl/latex-editor",
+  "homepage": "https://github.com/mikexyl/mikes-latex-editor",
   "type": "module",
   "private": true,
   "main": "build/electron/main.mjs",

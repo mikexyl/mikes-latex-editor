@@ -243,7 +243,7 @@ function macMenu(): Electron.MenuItemConstructorOptions[] {
     { role: 'windowMenu' },
     {
       role: 'help',
-      submenu: [{ label: 'Source code (AGPL-3.0)', click: () => void shell.openExternal('https://github.com/mikexyl/latex-editor') }],
+      submenu: [{ label: 'Source code (AGPL-3.0)', click: () => void shell.openExternal('https://github.com/mikexyl/mikes-latex-editor') }],
     },
   ];
 }

@@ -1,234 +1,90 @@
 # Mike's
 
-A personal LaTeX editor for reviewing and light revising, with a visual mode in the style of
-Overleaf's. Runs as a local web app on macOS and Ubuntu and works directly on plain `.tex`
-folders (git-friendly: the source file is always the single source of truth).
+A LaTeX editor for reading, reviewing and lightly revising papers. It works directly on a folder
+of plain `.tex` files, on macOS and Linux.
 
-## Requirements
-
-- Node.js 20+
-- A TeX distribution with `latexmk` on `PATH` (MacTeX / TeX Live), except in the desktop app,
-  which bundles its own
-
-## Desktop app (.dmg / AppImage)
-
-A standalone app that needs nothing else installed: it ships its own TeX Live and runs the editor
-in its own window. **Download it from the
-[Releases page](https://github.com/mikexyl/latex-editor/releases)**: a `.dmg` for macOS (Apple
+**[Download](https://github.com/mikexyl/mikes-latex-editor/releases)**: a `.dmg` for macOS (Apple
 Silicon or Intel) or an AppImage for Linux.
 
-To build it yourself:
+## Design principles
 
-```bash
-npm install
-npm run tex:build -- --from /usr/local/texlive/2026basic --platforms darwin,linux-x64
-npm run dist          # release/Mikes-<version>-{arm64,x64}.dmg and -x86_64.AppImage
-```
+**1. Visual mode first, for light editing and reviewing.**
+The paper reads like the PDF: headings, math, figures, lists, citations and `\input` files shown
+inline as one document. Whatever the cursor touches turns back into LaTeX, so you can still fix
+anything. Writing a whole paper from scratch or heavy restructuring is what Source mode is for.
 
-- `npm run tex:build` builds the bundled TeX into `build/texlive`. Without `--from` it installs a
-  fresh TeX Live from CTAN (needs Perl and internet); with `--from` it starts from an existing
-  TeX Live folder. `--platforms` picks the binaries to include (`darwin`, `linux-x64`,
-  `linux-arm64`), and `--packages papers` (default) adds the publisher classes and packages
-  papers usually need (IEEE, ACM, Elsevier, LNCS, REVTeX, biblatex, algorithms, TikZ, …).
-- `npm run dist:mac` / `npm run dist:linux` build one platform; `npm run electron:dev` runs the
-  desktop app from the sources (with hot reload).
-- **Releasing:** push a version tag (`git tag v0.1.0 && git push origin v0.1.0`). GitHub Actions
-  (`.github/workflows/release.yml`) builds the DMGs on macOS and the AppImage on Linux, each with
-  a freshly built TeX Live, and publishes them on a release for that tag. Running the workflow by
-  hand from the Actions tab builds without publishing.
-- The builds are only **ad-hoc signed**, not notarized by Apple. On macOS, the first launch is blocked: right-click the app and
-  choose **Open**, or allow it in System Settings → Privacy & Security. If macOS says the app
-  "is damaged", run `xattr -cr "/Applications/Mike's.app"`. On Ubuntu, make the AppImage
-  executable (`chmod +x`); Ubuntu 22.04 and later also need `sudo apt install libfuse2`.
-
-**TeX in the app is layered, like a container image:**
-
-- The **base** is the TeX Live inside the app. It's read-only and replaced by app updates.
-- The **user layer** (`~/Library/Application Support/Mike's/tex` on macOS,
-  `~/.config/Mike's/tex` on Ubuntu) holds packages installed from the app.
-- Compiles see only these two: no system TeX, `~/Library/texmf` or `~/texmf`. (`latexmk` still
-  reads `~/.latexmkrc` and a project's `latexmkrc`.)
-- When a compile stops on a missing package, the problems list offers **Install & recompile**.
-  ⚙ → **Manage TeX packages…** searches, installs and removes packages, updates them, or
-  resets the user layer. It can also switch to the system's TeX instead.
-- Perl (for `latexmk`, `latexdiff`) and git (for comparing versions) come from the system; macOS
-  and Ubuntu include Perl.
-
-## Install as a launcher (from the sources)
-
-```bash
-npm install
-npm run install-app
-```
-
-- **macOS:** adds **Mike's** to `~/Applications`; open it from Spotlight, Launchpad or
-  Finder, and drag it to the Dock to keep it there.
-- **Ubuntu:** adds **Mike's** to the app menu (Activities); right-click it there to add it to
-  the dock.
-- Both: adds a `latex-editor` terminal command in `~/.local/bin`:
-  `latex-editor ~/papers/thesis` opens a folder, `latex-editor status`, `latex-editor stop`.
-
-The app opens the editor in its own window (Chrome, Edge, Brave or Chromium in app mode;
-otherwise your default browser) on the last project you had open; switch projects from the
-project name in the top bar. A small background server does the work and exits by itself 10
-minutes after the last editor window closes (set `LATEX_EDITOR_IDLE_EXIT` in seconds to change
-that). On macOS it runs as an on-demand launchd job, so it survives the app's launcher exiting
-but is never restarted after it stops. The first launch builds the editor (a few seconds); after
-pulling code changes it rebuilds automatically. Logs: `~/.config/latex-editor/server.log`.
-`npm run uninstall-app` removes the app, menu entry, command and launchd job (projects and
-settings are kept).
-
-You can also install the open editor as a web app from Chrome's address bar (Install icon) or
-Safari's File > Add to Dock; it then opens in its own window too, as long as the server is running.
-
-## Run (development)
-
-```bash
-npm install
-npm run dev -- /path/to/your/paper     # http://127.0.0.1:5480
-```
-
-With no path it reopens the last project you had open (or `examples/sample` the first time).
-`--port 5481` (or `PORT=...`) changes the port. The server binds to 127.0.0.1 only, since its API
-can write files and list folders.
-
-**Switching projects:** click the project name in the top bar (or press ⌘O / Ctrl+O). Pick a
-recent project, or browse to a folder (folders with `.tex` files are marked) and press
-*Open this folder*. Open files are saved first. Recent projects are kept in
-`~/.config/latex-editor/projects.json`. If another window switches the editor to a different
-project, windows still showing the old one get a banner and refuse to save into the wrong folder.
-
-- **⌘S / Ctrl+S** or **Compile**: save all files, then compile with `latexmk`.
-- Edits autosave after ~1 s. If a file changed on disk meanwhile (git, another editor), you are
-  asked whether to reload it or keep your version; unchanged buffers reload automatically when
-  the window regains focus.
-- Build output goes to `.latex-editor-build/` inside the project (add it to the paper's `.gitignore`).
-
-`npm run build && npm start` serves a prebuilt UI instead of the Vite dev server.
-
-## Layout
-
-```
-server/index.ts     Express API: project tree, read/write files, compile, serve PDF
-server/compile.ts   latexmk runner + log parser (errors/warnings with file:line)
-server/tools.ts     SyncTeX lookups, git log/show, latexdiff build
-server/projects.ts  recent projects, folder browsing
-bin/latex-editor.mjs        launcher: start the background server, open the editor window
-scripts/install-app.mjs     install the macOS app / Ubuntu menu entry / terminal command
-web/src/main.ts     app shell: file tree, open buffers, autosave, conflicts, problems panel
-web/src/editor.ts   CodeMirror 6 setup, source/visual switch
-web/src/pdf.ts      PDF.js viewer
-web/src/lezer-latex/  LaTeX grammar from Overleaf (AGPL-3.0), compiled by `npm run grammar`
-web/src/compare/    compare with a git revision (diff overlay)
-web/src/review/     review: model.ts (find/accept/reject), track.ts (track changes), panel.ts
-web/src/visual/     visual mode: language.ts (parser + highlighting), decorations.ts (what to
-                    hide/style/replace), widgets.ts, math.ts (KaTeX + \newcommand macros)
-```
-
-## Visual mode
-
-The `.tex` source is never rewritten; visual mode only decorates it. Whatever the cursor touches is
-shown as source, so clicking a construct reveals its LaTeX for editing.
-
-Files pulled in with `\input`/`\include` (on their own line) are shown inline below that line as
-editable nested editors, so the paper reads as one document; edits there are saved to the included
-file. Use *Open file* in the inline header (or ⌘/Ctrl+click the chip) to open it on its own.
-Find in PDF and double-clicking the PDF work inside inline files too.
-
-**Zen** (top bar) hides everything but the text; press Esc or *Exit Zen* to come back.
-The text width of visual mode is adjustable under ⚙ Settings in the top bar (Narrow / Default /
-Wide / Full width, or any width with the slider).
-
-Paragraphs flow like in the PDF: a single line break in the source is shown as a space (LaTeX
-treats it as one), so only blank lines, `\\` and structural lines (headings, `\item`, `\begin`,
-math, tables, pseudocode, comments) start a new line. Pressing Enter inside a paragraph starts a new
-paragraph (inserts a blank line); use Source mode to add a plain line break. The exact line breaks
-of the PDF depend on TeX's fonts, column width and hyphenation, so the editor wraps to its own
-width instead.
-
-- Preamble collapses to a bar; `\maketitle` renders the title, authors and date
-- Section headings, bold/italic/underline/etc., links, footnotes
-- Inline and display math via KaTeX, using `\newcommand`/`\DeclareMathOperator` macros from the
-  file itself and from the main file's preamble (plus macro files it `\input`s and local `.sty`
-  packages), so included sections render the paper's macros; editing display math shows a live
-  preview underneath
-- Lists with bullets/numbers and nesting; abstract, theorem-like, quote, figure environments
-- `\includegraphics` (PDF figures rendered with pdf.js, raster images directly)
-- Chips for `\cite`, `\ref`/`\eqref`, `\label`, `\input`/`\include` (⌘/Ctrl+click to open)
-
-Anything it doesn't recognize (custom macros with arguments, tables, `\verb`) stays as source.
-
-## Review: tracked changes and comments
-
-Review markup is stored in the `.tex` source using the
-[`changes`](https://ctan.org/pkg/changes) package syntax, so it diffs cleanly in git:
+**2. Everything lives in the LaTeX source.**
+There is no sidecar database or cloud account: tracked changes, comments and notes are ordinary
+LaTeX macros in the `.tex` files. They travel with the source code through git, email or
+Overleaf, and diff cleanly.
 
 ```latex
 \added{new text}   \deleted{old text}   \replaced{new}{old}
+\revnote[the sentence in question]{XL}{Do we need this?}
 \highlight[comment={Which metric?}]{accuracy}   \comment{A standalone note}
 ```
 
-- **Track changes** (toolbar switch, remembered per project): typing records `\added{…}`,
-  deleting records `\deleted{…}`, typing over a selection records `\replaced{new}{old}`.
-  Consecutive edits merge; editing your own added text is a plain edit. Edits that would break
-  the LaTeX (inside math, command names, labels/citations, the preamble, across braces) are
-  refused with a message instead.
-- **Notes** (⌘⌥M / Ctrl+Alt+M, or the Comment button): inserts the note macro,
-  `\revnote{XL}{…}` by default, with your initials and the cursor in the note text. On a
-  selection it records what the note is about: `\revnote[selected text]{XL}{…}`, where the
-  selected text stays in the paper and is highlighted. Notes render as red bubbles in visual mode,
-  appear in the review panel with the text they're about (Resolve deletes the note and keeps that
-  text), and print in the PDF through the macro, e.g.
-  `\newcommand{\revnote}[3][]{#1\textcolor{red}{[#2: #3]}}`; if the paper doesn't define it, that
-  definition is used when compiling. The default name avoids `\note`, which beamer and other
-  packages define. Notes written as `\note{…}{…}` by earlier versions still work everywhere (editor,
-  review panel, PDF); new notes use `\revnote`. Initials, the macro name and
-  the comment style are under *Comment settings* in the review panel.
-- **Comment** in `changes` style (pick it in *Comment settings*): on a selection adds
-  `\highlight[comment={…}]{…}`, otherwise `\comment{…}`.
-- **Selection toolbar:** select text and a small toolbar appears above it: *Comment* (as above),
-  *Suggest edit* (turns the selection into `\replaced{new}{old}` with the new text selected, so you
-  just type your version) and *Delete* (marks it `\deleted{…}`). These work with tracking on or off.
-- **Review panel** lists every change and comment in the open file with Accept / Reject /
-  Resolve, plus Accept all / Reject all. The same buttons appear inline next to the change the
-  cursor is in. Undo works for all of it.
-- **Compiling** doesn't need the `changes` package: the editor injects fallback definitions at
-  compile time (your preamble is untouched), so the PDF shows the proposed text with additions in
-  blue and deletions/comments hidden. If the document loads `\usepackage{changes}`, the real
-  package is used. To share a file with someone not using this editor, accept/reject everything
-  first, or add `\usepackage{changes}`.
+The review macros use the syntax of the [`changes`](https://ctan.org/pkg/changes) package. When
+compiling, the editor supplies definitions for anything the paper doesn't define, so no preamble
+changes are needed. To compile elsewhere (Overleaf, a co-author's TeX), add
+`\usepackage{changes}` and `\newcommand{\revnote}[3][]{#1\textcolor{red}{[#2: #3]}}`, or accept
+and resolve everything first.
 
-`npm test` runs the track-changes tests.
+**3. TeX is bundled and easy to configure.**
+The app ships its own TeX Live (TeX Live 2026, with the classes and packages papers usually need:
+IEEE, ACM, Elsevier, LNCS, REVTeX, biblatex, TikZ, algorithms, …). Nothing else has to be
+installed, and compiles don't depend on what's on the machine. When a compile stops on a missing
+package, **Install & recompile** fixes it. ⚙ → **Manage TeX packages…** adds, updates or removes
+packages, or switches to the system's TeX.
 
-## Source ↔ PDF and comparing versions
+## What you can do
 
-- **Find in PDF** (⌘⌥J / Ctrl+Alt+J, or the button above the PDF) scrolls the PDF to the cursor's
-  line and flashes it. **Double-click the PDF** to open the source file at that line (SyncTeX;
-  works across `\input` files).
-- **Compare with** (top bar) lists the git commits that touched the project folder. Pick one and
-  the open file shows what changed since then: blue for text added, orange strikethrough for text
-  removed. It follows your edits; *Stop comparing* turns it off. In visual mode, a change hidden
-  inside collapsed LaTeX is shown next to it (✱ = changed inside hidden markup).
-- With [latexdiff](https://ctan.org/pkg/latexdiff) installed, comparing also builds a marked-up
-  **diff PDF** (shown in the PDF pane while comparing). Install it with one of:
+- **Visual or Source mode**, switchable any time. In visual mode, single line breaks flow like in
+  the PDF; Enter starts a new paragraph.
+- **Track changes** (toolbar switch): typing, deleting and overwriting are recorded as
+  `\added` / `\deleted` / `\replaced`. Edits that would break the LaTeX are refused.
+- **Comment** (⌘⌥M / Ctrl+Alt+M, or select text and use the toolbar that appears): adds
+  `\revnote{XL}{…}` with your initials, or `\revnote[selection]{XL}{…}` on a selection, which
+  highlights the text the note is about. Notes print in red in the PDF. Notes written as
+  `\note{…}{…}` by earlier versions still work.
+- **Review panel**: every change and comment in the file, with Accept, Reject and Resolve, one at
+  a time or all at once.
+- **Source ↔ PDF**: *Find in PDF* (⌘⌥J / Ctrl+Alt+J) jumps to the cursor's spot in the PDF, and
+  double-clicking the PDF jumps to the source, across `\input` files.
+- **Compare with a git commit**: see what changed since then, plus a latexdiff PDF if
+  [latexdiff](https://ctan.org/pkg/latexdiff) is installed.
+- **View figures**: images and PDFs in the project open right in the editor.
+- **Reload from disk** (↻) after git or another tool changed files; edits autosave.
+- ⚙ **Settings**: light or dark theme, font size, and text width.
 
-  ```bash
-  brew install latexdiff
-  sudo tlmgr install latexdiff
-  sudo apt install latexdiff
-  ```
+## Running from source
 
-  or set `LATEXDIFF=/path/to/latexdiff`.
+Needs Node.js 20+ and, outside the desktop app, a TeX distribution with `latexmk`.
 
-## Roadmap
+```bash
+npm install
+npm run dev -- /path/to/paper     # the editor in your browser, http://127.0.0.1:5480
+npm run electron:dev               # the desktop app from the sources
+```
 
-1. ~~Open folder, edit, save, compile, PDF preview~~
-2. ~~Visual mode: Lezer LaTeX grammar + decorations (sections, emphasis, math, cite/ref chips)~~
-3. ~~Review layer: tracked changes with accept/reject, comments~~
-4. ~~SyncTeX source ↔ PDF jumping, compare against a git revision (+ latexdiff PDF)~~
+Building the desktop app (the bundled TeX comes from CTAN, or from an existing TeX Live with
+`--from`):
+
+```bash
+npm run tex:build                 # → build/texlive
+npm run dist:mac                  # → release/Mikes-<version>-{arm64,x64}.dmg
+npm run dist:linux                # → release/Mikes-<version>-x86_64.AppImage
+```
+
+Pushing a `v*` tag builds both on GitHub Actions and publishes a release. `npm test` runs the
+tests.
+
+**First launch:** the Mac app isn't notarized by Apple, so right-click it and choose **Open**, or
+run `xattr -cr "/Applications/Mike's.app"`. On Linux, `chmod +x` the AppImage; Ubuntu 22.04 and
+later also need `sudo apt install libfuse2`.
 
 ## License
 
 AGPL-3.0 (see [LICENSE](LICENSE)). The LaTeX grammar in `web/src/lezer-latex/` comes from
-[Overleaf](https://github.com/overleaf/overleaf) and is licensed AGPL-3.0, so the editor as a whole
-is distributed under the same license.
+[Overleaf](https://github.com/overleaf/overleaf) under AGPL-3.0, so the editor as a whole uses the
+same license.
