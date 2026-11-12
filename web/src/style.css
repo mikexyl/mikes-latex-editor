@@ -701,6 +701,9 @@ body.zen .editor-pane { background: var(--panel); }
 .pd-choose { font-size: 11px; text-transform: none; letter-spacing: 0; margin-left: 8px; }
 #set-tex-manage { margin-top: 8px; width: 100%; }
 .tex-dialog { width: min(680px, calc(100vw - 32px)); }
+.initials-dialog { width: min(380px, calc(100vw - 32px)); }
+.initials-dialog .pd-note { margin: 4px 0 10px; }
+.initials-dialog .pd-footer { justify-content: flex-end; }
 .tx-status { margin: 4px 0 8px; line-height: 1.4; }
 .tx-mode { display: flex; flex-direction: column; gap: 4px; }
 .tx-mode[hidden] { display: none; }

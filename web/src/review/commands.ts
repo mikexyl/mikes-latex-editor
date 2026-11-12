@@ -27,6 +27,40 @@ const fail = (why: string) => {
 };
 
 /**
+ * Ask for the initials notes are signed with. An in-page dialog, not window.prompt(): the desktop
+ * app (Electron) doesn't support prompt(), which returns nothing there. Resolves to the trimmed
+ * answer, or null when cancelled.
+ */
+function askInitials(): Promise<string | null> {
+  const d = document.createElement('dialog');
+  d.className = 'project-dialog initials-dialog';
+  d.setAttribute('aria-labelledby', 'initials-dialog-title');
+  d.innerHTML = `
+    <div class="pd-header"><h2 id="initials-dialog-title">Your initials</h2></div>
+    <form class="pd-section" method="dialog">
+      <p class="pd-note">Notes are signed with them, e.g. \\note{XL}{…}. You can change them later in the review panel.</p>
+      <div class="pd-path">
+        <input name="initials" type="text" placeholder="XL" spellcheck="false" autocomplete="off" aria-label="Initials" />
+      </div>
+      <div class="pd-footer">
+        <button type="button" value="cancel">Cancel</button>
+        <button type="submit" class="primary" value="ok">Add note</button>
+      </div>
+    </form>`;
+  document.body.append(d);
+  const input = d.querySelector('input')!;
+  return new Promise((resolve) => {
+    let answer: string | null = null;
+    d.querySelector('form')!.addEventListener('submit', () => { answer = input.value.trim(); });
+    d.querySelector('button[value=cancel]')!.addEventListener('click', () => d.close());
+    d.addEventListener('click', (e) => { if (e.target === d) d.close(); }); // backdrop
+    d.addEventListener('close', () => { d.remove(); resolve(answer); }, { once: true });
+    d.showModal();
+    input.focus();
+  });
+}
+
+/**
  * Add a comment at the cursor, with the cursor left inside it ready to type:
  * - note style: \note{XL}{…}, after the selection if there is one (the text stays as it is);
  * - changes style: \highlight[comment={…}]{selection}, or \comment{…} without a selection.
@@ -37,10 +71,14 @@ export function addComment(view: EditorView): boolean {
 
   if (prefs.style === 'note') {
     if (!prefs.initials) {
-      const answer = window.prompt('Your initials for notes, e.g. XL:', '');
-      if (answer === null) return true;
-      prefs = { ...prefs, initials: answer.trim() };
-      onPrefsChange(prefs);
+      void askInitials().then((answer) => {
+        if (answer === null) { view.focus(); return; }
+        prefs = { ...prefs, initials: answer };
+        onPrefsChange(prefs);
+        if (answer) addComment(view); // asked again next time if left empty
+        else view.focus();
+      });
+      return true;
     }
     const why = unsafeAt(state, r.to);
     if (why) return fail(why);
