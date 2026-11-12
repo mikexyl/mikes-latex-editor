@@ -103,11 +103,52 @@ function saveBounds(win: BrowserWindow) {
 let win: BrowserWindow | null = null;
 let server: Awaited<ReturnType<typeof startServer>> | null = null;
 
+// The window's icon on Linux (macOS takes the bundle's). dist/ when built, web/public/ otherwise.
+const windowIcon = [path.join(appDir, 'dist', 'icon-512.png'), path.join(appDir, 'web', 'public', 'icon-512.png')]
+  .find((p) => fs.existsSync(p));
+
+/**
+ * An AppImage installs nothing, so GNOME's dock has no launcher to match the window to (by its
+ * WM_CLASS, "mikes") and shows a generic icon, which can't be pinned either. Register one under
+ * ~/.local/share, pointing at this AppImage; rewritten when the AppImage moves.
+ */
+function registerAppImageLauncher() {
+  const appImage = process.env.APPIMAGE;
+  if (process.platform !== 'linux' || !appImage || !windowIcon) return;
+  try {
+    const share = process.env.XDG_DATA_HOME || path.join(app.getPath('home'), '.local', 'share');
+    const iconFile = path.join(share, 'icons', 'hicolor', '512x512', 'apps', 'mikes.png');
+    const desktopFile = path.join(share, 'applications', 'mikes.desktop');
+    const icon = fs.readFileSync(windowIcon);
+    if (!fs.existsSync(iconFile) || !fs.readFileSync(iconFile).equals(icon)) {
+      fs.mkdirSync(path.dirname(iconFile), { recursive: true });
+      fs.writeFileSync(iconFile, icon);
+    }
+    const quoted = `"${appImage.replace(/(["`$\\])/g, '\\$1')}"`;
+    const entry = `[Desktop Entry]
+Type=Application
+Name=Mike's
+Comment=Review and revise LaTeX papers with a visual editor
+Exec=${quoted} %U
+TryExec=${appImage}
+Icon=${iconFile}
+Terminal=false
+Categories=Office;
+StartupWMClass=mikes
+StartupNotify=true
+`;
+    if (fs.existsSync(desktopFile) && fs.readFileSync(desktopFile, 'utf8') === entry) return;
+    fs.mkdirSync(path.dirname(desktopFile), { recursive: true });
+    fs.writeFileSync(desktopFile, entry, { mode: 0o755 });
+  } catch { /* the window still works, just with a generic dock icon */ }
+}
+
 function createWindow(url: string) {
   const b = loadBounds();
   win = new BrowserWindow({
     x: b.x, y: b.y, width: b.width, height: b.height, minWidth: 700, minHeight: 450,
     title: "Mike's",
+    icon: process.platform === 'linux' ? windowIcon : undefined,
     show: false,
     backgroundColor: '#ffffff',
     webPreferences: {
@@ -154,6 +195,7 @@ ipcMain.handle('reveal-path', (_e, p: unknown) => {
 });
 
 app.whenReady().then(async () => {
+  registerAppImageLauncher();
   // Under the app's data folder: the writable layer for packages installed from the app.
   await configureTex({ base: texBase(), userDir: path.join(userData, 'tex') });
   const token = crypto.randomBytes(24).toString('hex');
