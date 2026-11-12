@@ -8,7 +8,7 @@ import type { SyntaxNode, Tree } from '@lezer/common';
 import { macrosFor } from './math.ts';
 import {
   TextWidget, ChipWidget, MathWidget, ItemWidget, EnvLineWidget, PreambleWidget, TitleWidget, GraphicsWidget,
-  CommentWidget, ReviewActionsWidget, CommentFoldWidget, type TitleAuthor,
+  CommentWidget, ReviewActionsWidget, CommentFoldWidget, type TitleAuthor, type TitleExtra,
 } from './widgets.ts';
 import { parseTabular, TableWidget } from './table.ts';
 import { IncludeWidget } from './includes.ts';
@@ -194,6 +194,26 @@ function plainText(tex: string, lineBreak = ', '): string {
     .replace(/[ \t\n]+/g, ' ')
     .replace(/\s*\u0000\s*/g, lineBreak)
     .trim();
+}
+
+/** What \IEEEaftertitletext{tex} shows, roughly: its images, its caption, else its text. */
+function titlePreview(tex: string, at: number): TitleExtra {
+  const t = tex.replace(/(^|[^\\])%.*$/gm, '$1');
+  const figures = [...t.matchAll(/\\includegraphics\s*(?:\[([^\]]*)\])?\s*\{([^}]*)\}/g)].map((m) => ({
+    path: m[2].trim(),
+    width: graphicsWidth(m[1] ?? '') ?? (/width\s*=\s*\\(?:line|text|column)width/.test(m[1] ?? '') ? '100%' : null),
+  }));
+  let caption: string | null = null;
+  const c = /\\captionof\s*\*?\s*\{[^}]*\}/.exec(t);
+  if (c) caption = commandArg(`\\x${t.slice(c.index + c[0].length)}`, 'x');
+  else caption = commandArg(t, 'caption');
+  const clean = (s: string) => plainText(removeCommand(s, 'label'), ' ');
+  return {
+    figures,
+    caption: caption ? `Fig. 1. ${clean(caption)}` : '',
+    text: figures.length || caption ? '' : clean(t),
+    at,
+  };
 }
 
 function graphicsWidth(opts: string): string | null {
@@ -404,6 +424,7 @@ function build(state: EditorState, tree: Tree): Built {
 
   let preamble: { to: number } | null = null;
   let maketitleSeen = false;
+  let titleExtra: TitleExtra | null = null; // \IEEEaftertitletext in the preamble
   let titleContentAt = -1; // start of the first title-block content before \maketitle (TITLE_CONTENT, teaserfigure)
   const titleParts = { title: '', authors: [] as TitleAuthor[], date: '' };
   let skipUntil = -1; // nodes inside a range already replaced (e.g. \hskip glue ... \relax)
@@ -443,7 +464,7 @@ function build(state: EditorState, tree: Tree): Built {
           if (lineBefore >= 1) pre.to = Math.max(pre.to, doc.line(lineBefore).to);
         }
         maketitleSeen = true;
-        const title = new TitleWidget(titleParts.title, titleParts.authors, titleParts.date);
+        const title = new TitleWidget(titleParts.title, titleParts.authors, titleParts.date, titleExtra);
         if (extra >= 0) {
           atomic.push(Decoration.widget({ widget: title, block: true, side: -1 }).range(doc.lineAt(extra).from));
           replaceLines(node, new EnvLineWidget('hidden'));
@@ -756,6 +777,11 @@ function build(state: EditorState, tree: Tree): Built {
           return false;
         }
         if (TITLE_CONTENT.has(cmd) && args.length === 1) {
+          // In the preamble (no \begin{document} seen yet): the title block shows a preview.
+          if (!preamble) {
+            if (!titleExtra) titleExtra = titlePreview(argText(args[0]), node.from);
+            return false;
+          }
           if (!maketitleSeen && titleContentAt < 0) titleContentAt = node.from;
           unwrapArg(node, args[0]);
           return; // the content renders as usual

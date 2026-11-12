@@ -110,11 +110,19 @@ export class PreambleWidget extends WidgetType {
 }
 
 export type TitleAuthor = { name: string; lines: string[] };
+/**
+ * Content the class prints below the title but that is set in the preamble (IEEEtran's
+ * \IEEEaftertitletext): its figures and caption, and `at`, where its source starts.
+ */
+export type TitleExtra = { figures: { path: string; width: string | null }[]; caption: string; text: string; at: number };
 
 export class TitleWidget extends WidgetType {
-  constructor(readonly title: string, readonly authors: TitleAuthor[], readonly date: string) { super(); }
-  eq(o: TitleWidget) { return o.title === this.title && o.date === this.date && JSON.stringify(o.authors) === JSON.stringify(this.authors); }
-  toDOM() {
+  constructor(readonly title: string, readonly authors: TitleAuthor[], readonly date: string, readonly extra: TitleExtra | null = null) { super(); }
+  eq(o: TitleWidget) {
+    return o.title === this.title && o.date === this.date && JSON.stringify(o.authors) === JSON.stringify(this.authors)
+      && JSON.stringify(o.extra) === JSON.stringify(this.extra);
+  }
+  toDOM(view: EditorView) {
     const box = el('div', 'vc-maketitle');
     if (this.title) {
       const t = el('div', 'vc-title');
@@ -137,9 +145,23 @@ export class TitleWidget extends WidgetType {
     }
     if (this.date) box.append(el('div', 'vc-date', this.date));
     if (!this.title && !this.authors.length) box.append(el('div', 'vc-date', '\\maketitle'));
+    const extra = this.extra;
+    if (extra) {
+      // A preview: its source is in the (collapsed) preamble. Clicking opens it there.
+      const x = el('div', 'vc-title-extra');
+      x.title = 'Set in the preamble with \\IEEEaftertitletext: click to edit';
+      for (const f of extra.figures) x.append(new GraphicsWidget(f.path, f.width, true).toDOM(view));
+      if (extra.caption) x.append(el('div', 'vc-title-caption', extra.caption));
+      if (extra.text) x.append(el('div', 'vc-title-text', extra.text));
+      x.onclick = () => {
+        view.dispatch({ selection: { anchor: extra.at }, effects: EditorView.scrollIntoView(extra.at, { y: 'center' }) });
+        view.focus();
+      };
+      box.append(x);
+    }
     return box;
   }
-  ignoreEvent() { return false; }
+  ignoreEvent(e: Event) { return !!(e.target as HTMLElement).closest?.('.vc-title-extra'); }
 }
 
 // ---------- figures ----------
