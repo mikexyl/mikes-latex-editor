@@ -134,6 +134,15 @@ if (tlmgr(['install', ...list], true) !== 0) log('some packages could not be ins
 for (const p of ['texmf-dist/doc', 'texmf-dist/source', 'tlpkg/backups', 'install-tl.log', 'texmf-var/luatex-cache']) {
   fs.rmSync(path.join(out, p), { recursive: true, force: true });
 }
+// Links into what was just removed (bin/<platform>/man → texmf-dist/doc/man) now point nowhere;
+// macOS code signing fails on them.
+(function removeDanglingLinks(dir) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, e.name);
+    if (e.isSymbolicLink()) { if (!fs.existsSync(p)) fs.rmSync(p); }
+    else if (e.isDirectory()) removeDanglingLinks(p);
+  }
+})(out);
 fs.mkdirSync(path.join(out, 'texmf-local'), { recursive: true });
 const size = spawnSync('du', ['-sh', out], { encoding: 'utf8' }).stdout.trim();
 log(`done: ${size}`);
