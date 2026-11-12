@@ -1,7 +1,7 @@
 {
   "name": "latex-editor",
   "productName": "Mike's",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A local LaTeX editor for reviewing and revising papers, with an Overleaf-style visual mode",
   "author": "mikexyl",
   "license": "AGPL-3.0-only",
