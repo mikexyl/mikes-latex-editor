@@ -9,7 +9,7 @@ import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { compile, setNoteMacro, BUILD_DIR, pdfPathFor } from './compile.ts';
-import { synctexForward, synctexBackward, gitLog, gitShow, buildDiff, diffPdfPath } from './tools.ts';
+import { synctexForward, synctexBackward, synctexPages, gitLog, gitShow, buildDiff, diffPdfPath } from './tools.ts';
 import { addRecent, removeRecent, listRecent, listFolder, checkProjectDir } from './projects.ts';
 import { texRoutes } from './tex-routes.ts';
 
@@ -252,6 +252,13 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     resolveInRoot(root, main);
     resolveInRoot(root, file);
     res.json({ boxes: await synctexForward(root, main, file, Number(req.query.line) || 1) });
+  }));
+
+  app.get('/api/synctex/pages', wrap(async (req, res) => {
+    const root = rootOf(res);
+    const main = String(req.query.main ?? '');
+    resolveInRoot(root, main);
+    res.json(await synctexPages(root, main));
   }));
 
   app.get('/api/synctex/backward', wrap(async (req, res) => {

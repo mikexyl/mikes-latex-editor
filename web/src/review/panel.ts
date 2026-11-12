@@ -16,7 +16,7 @@ export type ReviewSource = {
   state: () => EditorState;
   dispatch: (spec: TransactionSpec) => void;
   /** Show `pos` in the editor and put the cursor there. */
-  reveal: (pos: number) => void;
+  reveal: (pos: number, to?: number) => void;
 };
 
 export class ReviewPanel {

@@ -166,6 +166,26 @@ button.link:hover { color: var(--text); text-decoration: underline; }
 .toc-item.lvl-paragraph { padding-left: 52px; color: var(--muted); font-size: 0.92em; }
 .toc-item .toc-file { color: var(--muted); font-size: 11px; margin-left: 6px; font-weight: 400; }
 .toc-empty { color: var(--muted); padding: 8px 12px; font-size: 13px; }
+/* Search: every text file in the project */
+.search-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.search-pane[hidden] { display: none; }
+.search-form { padding: 8px; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid var(--border); }
+.search-form input[type=search], .search-form input[type=text] { width: 100%; min-width: 0; font: inherit; padding: 3px 6px; }
+.search-opts { display: flex; gap: 10px; color: var(--muted); font-size: 12px; }
+.search-opts label { display: inline-flex; align-items: center; gap: 3px; cursor: pointer; }
+.replace-row { display: flex; gap: 4px; }
+.replace-row button { white-space: nowrap; }
+.search-summary { color: var(--muted); font-size: 12px; padding: 6px 10px 2px; }
+.search-results { flex: 1; min-height: 0; overflow: auto; padding-bottom: 8px; }
+.search-file { display: flex; justify-content: space-between; gap: 6px; padding: 6px 10px 2px; font-size: 12px; font-weight: 600; color: var(--muted); overflow-wrap: anywhere; }
+.search-count { font-weight: 400; }
+.search-hit {
+  display: block; width: 100%; text-align: left; border: none; border-radius: 0; background: none;
+  padding: 2px 10px 2px 14px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text);
+}
+.search-hit:hover { background: var(--hover); }
+.search-hit mark { background: var(--highlight-bg); color: inherit; border-radius: 2px; padding: 0 1px; }
+.search-line { color: var(--muted); display: inline-block; min-width: 2.4em; font-variant-numeric: tabular-nums; }
 .files .item {
   display: block;
   width: 100%;
@@ -429,7 +449,7 @@ ins.rv-added, del.rv-deleted { padding: 0 2px; border-radius: 2px; }
 .editor-pane.viewing #track-toggle, .editor-pane.viewing #comment-btn,
 .editor-pane.viewing #strike-btn, .editor-pane.viewing #outline-btn,
 .editor-pane.viewing #review-toggle, .editor-pane.viewing #mode-toggle { display: none; }
-.editor-row .editor { flex: 1; min-width: 0; }
+.editor-row .editor { flex: 1; min-width: 0; position: relative; }
 .review {
   width: 300px;
   flex: none;
@@ -964,3 +984,14 @@ body.zen .editor-pane { background: var(--panel); }
 .md-body hr { border: 0; border-top: 1px solid var(--border); margin: 1.5em 0; }
 .md-body input[type=checkbox] { margin-right: 6px; }
 .md-math[data-display="1"] { text-align: center; margin: 0 0 1em; overflow-x: auto; }
+
+/* ---------- pages of the PDF, shown in the editor ---------- */
+.vc-page-break { display: flex; align-items: center; gap: 8px; margin: 6px 0; color: var(--muted); font: 11px var(--sans); user-select: none; }
+.vc-page-break::before, .vc-page-break::after { content: ""; flex: 1; border-top: 1px dashed var(--border-strong); }
+.page-badge {
+  position: absolute; right: 18px; bottom: 12px; z-index: 4;
+  font: 12px var(--sans); color: var(--muted); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 10px; padding: 2px 9px; pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+.page-badge[hidden] { display: none; }

@@ -172,9 +172,26 @@
         <div class="side-tabs" role="tablist" aria-label="Sidebar">
           <button role="tab" id="tab-files" aria-selected="true" aria-controls="file-tree">Files</button>
           <button role="tab" id="tab-toc" aria-selected="false" aria-controls="toc" title="The document's sections, including \input files: click to go there">Contents</button>
+          <button role="tab" id="tab-search" aria-selected="false" aria-controls="search-pane" title="Search all files in the project (Ctrl+Shift+F / ⌘⇧F)">Search</button>
         </div>
         <div class="file-tree" id="file-tree" role="tabpanel"></div>
         <div class="toc" id="toc" role="tabpanel" hidden></div>
+        <div class="search-pane" id="search-pane" role="tabpanel" hidden>
+          <form class="search-form" id="search-form">
+            <input id="search-input" type="search" placeholder="Search all files" spellcheck="false" autocomplete="off" aria-label="Search all files" />
+            <div class="search-opts">
+              <label title="Match case"><input type="checkbox" id="search-case" /> Aa</label>
+              <label title="Whole words only"><input type="checkbox" id="search-word" /> Word</label>
+              <label title="Regular expression"><input type="checkbox" id="search-regex" /> .*</label>
+            </div>
+            <div class="replace-row">
+              <input id="replace-input" type="text" placeholder="Replace with" spellcheck="false" autocomplete="off" aria-label="Replace with" />
+              <button type="button" id="replace-all" disabled title="Replace every match in every file">Replace all</button>
+            </div>
+          </form>
+          <div class="search-summary" id="search-summary"></div>
+          <div class="search-results" id="search-results"></div>
+        </div>
       </nav>
 
       <section class="editor-pane" id="editor-pane">
@@ -204,6 +221,7 @@
         </div>
         <div class="editor-row">
           <div class="editor" id="editor"></div>
+          <div class="page-badge" id="page-badge" hidden></div>
           <aside class="review" id="review" hidden aria-label="Changes and comments"></aside>
           <div class="file-viewer" id="file-viewer" hidden>
             <div class="fv-toolbar">

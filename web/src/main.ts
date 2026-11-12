@@ -8,7 +8,7 @@ import { initTex, installProviding, texStatus } from './tex.ts';
 import { api, setProjectRoot, rememberWindowProject, rememberedWindowProject, ConflictError, type Project, type CompileResult, type Problem } from './api.ts';
 import { editorExtensions, createState, goToLine, setModes, supportsVisual, type Modes } from './editor.ts';
 import { ReviewPanel, type ReviewSource } from './review/panel.ts';
-import { findIncludes } from './review/model.ts';
+import { findIncludes, reviewAction } from './review/model.ts';
 import { addComment, addOutline, suggestDeletion, setCommentPrefs, withInitials, type CommentPrefs } from './review/commands.ts';
 import { compareField, setCompareBase } from './compare/diff.ts';
 import { setAssetBase } from './visual/widgets.ts';
@@ -19,6 +19,8 @@ import { PdfViewer } from './pdf.ts';
 import { FileViewer, VIEWABLE } from './viewer.ts';
 import { MARKDOWN } from './markdown.ts';
 import { fileParts, numberHeadings, type TocEntry } from './toc.ts';
+import { setPageBreaks } from './pages.ts';
+import { compileQuery, findMatches, replacementFor, type Match, type SearchOptions } from './search.ts';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -190,6 +192,7 @@ async function openFile(path: string): Promise<OpenFile> {
     current = f;
     view.setState(f.state);
     setModes(view, f.path, modes()); // the file may have been opened under other modes
+    view.dispatch({ effects: setPageBreaks.of(pageBreaksByFile.get(f.path) ?? []) });
     // Back where you left it: put the line that was at the top back at the top. A document
     // position (not a pixel offset) stays right while heights settle. Without taking focus: a
     // focused editor keeps the browser's caret in sync with the selection, which (for a file you
@@ -393,6 +396,7 @@ setIncludeHost({
     // This is CodeMirror's print mode; section files are small enough for it to be cheap.
     (v as unknown as { viewState: { printing: boolean } }).viewState.printing = true;
     setModes(v, path, modes());
+    v.dispatch({ effects: setPageBreaks.of(pageBreaksByFile.get(path) ?? []) });
     nested.set(path, v);
     pool.set(path, wrapper);
     return reattach();
@@ -469,7 +473,7 @@ function reviewSources(): ReviewSource[] {
     path: current.path,
     state: () => view.state,
     dispatch: (spec) => view.dispatch(spec),
-    reveal: (pos) => revealIn(view, pos),
+    reveal: (pos, to) => revealIn(view, pos, to),
   }];
   const seen = new Set([current.path]);
   const walk = (state: EditorState, anchor: number | null) => {
@@ -488,7 +492,7 @@ function reviewSources(): ReviewSource[] {
         path,
         state: () => parsed(liveState(f)),
         dispatch: (spec) => dispatchTo(f, spec),
-        reveal: (p) => revealIncluded(f, at, p),
+        reveal: (p, to) => revealIncluded(f, at, p, to),
       });
       walk(parsed(liveState(f)), at);
     }
@@ -506,17 +510,18 @@ function dispatchTo(f: OpenFile, spec: TransactionSpec) {
   scheduleAutosave();
 }
 
-function revealIn(v: EditorView, pos: number) {
-  v.dispatch({ selection: { anchor: pos }, effects: EditorView.scrollIntoView(pos, { y: 'center' }) });
+/** Put the cursor at `pos` (or select pos..to) in `v`, scrolled into view. */
+function revealIn(v: EditorView, pos: number, to?: number) {
+  v.dispatch({ selection: { anchor: pos, head: to ?? pos }, effects: EditorView.scrollIntoView(pos, { y: 'center' }) });
   v.focus();
 }
 
 /** Show a place in an included file: inline below its \input (visual mode), or open the file. */
-function revealIncluded(f: OpenFile, anchor: number, pos: number) {
+function revealIncluded(f: OpenFile, anchor: number, pos: number, to?: number) {
   const inline = () => (attached.has(f.path) ? nested.get(f.path) : undefined);
   const v = visualMode ? inline() : undefined;
-  if (v) return revealIn(v, pos);
-  const openIt = () => void openFile(f.path).then(() => revealIn(view, pos));
+  if (v) return revealIn(v, pos, to);
+  const openIt = () => void openFile(f.path).then(() => revealIn(view, pos, to));
   if (!visualMode) return openIt();
   // Inline but scrolled away (not on the page): bring its \input into view, wait for the
   // editor to mount, then go to the spot. If it never mounts (not shown inline), open the file.
@@ -524,7 +529,7 @@ function revealIncluded(f: OpenFile, anchor: number, pos: number) {
   const until = performance.now() + 1500;
   const wait = () => {
     const w = inline();
-    if (w) return requestAnimationFrame(() => revealIn(w, pos));
+    if (w) return requestAnimationFrame(() => revealIn(w, pos, to));
     if (performance.now() > until) return openIt();
     requestAnimationFrame(wait);
   };
@@ -644,16 +649,152 @@ document.addEventListener('selectionchange', () => {
   markTimer = window.setTimeout(markCurrentHeading, 120);
 });
 
-function showSidebarTab(tab: 'files' | 'toc') {
+type SidebarTab = 'files' | 'toc' | 'search';
+function showSidebarTab(tab: SidebarTab) {
+  if (filesHidden) setFilesHidden(false);
   $('tab-files').setAttribute('aria-selected', String(tab === 'files'));
   $('tab-toc').setAttribute('aria-selected', String(tab === 'toc'));
+  $('tab-search').setAttribute('aria-selected', String(tab === 'search'));
   $('file-tree').hidden = tab !== 'files';
   $('toc').hidden = tab !== 'toc';
+  $('search-pane').hidden = tab !== 'search';
   store.set('sidebar-tab', tab);
   if (tab === 'toc') renderToc();
+  if (tab === 'search') { diskText.clear(); void runSearch(); }
 }
 $('tab-files').onclick = () => showSidebarTab('files');
 $('tab-toc').onclick = () => showSidebarTab('toc');
+$('tab-search').onclick = () => { showSidebarTab('search'); $<HTMLInputElement>('search-input').focus(); };
+
+// ---------- Search: every text file in the project ----------
+
+/** Files not open in the editor, as read from disk (cleared when the search tab opens or the window regains focus). */
+const diskText = new Map<string, string>();
+const searchOptions = (): SearchOptions => ({
+  query: $<HTMLInputElement>('search-input').value,
+  caseSensitive: $<HTMLInputElement>('search-case').checked,
+  wholeWord: $<HTMLInputElement>('search-word').checked,
+  regex: $<HTMLInputElement>('search-regex').checked,
+});
+/** Text files to search: .tex, .bib, .md, ... (with what the editor has for open ones). */
+async function searchTexts(): Promise<{ path: string; text: string }[]> {
+  const files = project.tree.filter((e) => e.type === 'file' && TEXT_EXT.test(e.path) && !isHidden(e.path));
+  return Promise.all(files.map(async (e) => {
+    const f = open.get(e.path);
+    if (f) return { path: e.path, text: liveState(f).doc.toString() };
+    if (!diskText.has(e.path)) diskText.set(e.path, await api.read(e.path).then((r) => r.content, () => ''));
+    return { path: e.path, text: diskText.get(e.path)! };
+  }));
+}
+
+const SEARCH_LIMIT = 1000;
+let searchRun = 0;
+let lastResults: { path: string; matches: Match[] }[] = [];
+async function runSearch() {
+  const run = ++searchRun;
+  const re = compileQuery(searchOptions());
+  const summary = $('search-summary');
+  const list = $('search-results');
+  $<HTMLButtonElement>('replace-all').disabled = true;
+  if (re === null) { summary.textContent = ''; list.replaceChildren(); lastResults = []; return; }
+  if (typeof re === 'string') { summary.textContent = `Invalid pattern: ${re}`; list.replaceChildren(); lastResults = []; return; }
+  const texts = await searchTexts();
+  if (run !== searchRun) return; // a newer search started meanwhile
+  // The open file first, then the rest in tree order.
+  texts.sort((a, b) => Number(b.path === current?.path) - Number(a.path === current?.path));
+  let total = 0;
+  lastResults = [];
+  for (const t of texts) {
+    if (total >= SEARCH_LIMIT) break;
+    const matches = findMatches(t.text, re, SEARCH_LIMIT - total);
+    if (matches.length) { lastResults.push({ path: t.path, matches }); total += matches.length; }
+  }
+  const files = lastResults.length;
+  summary.textContent = total
+    ? `${total >= SEARCH_LIMIT ? `First ${SEARCH_LIMIT}` : total} match${total === 1 ? '' : 'es'} in ${files} file${files === 1 ? '' : 's'}`
+    : 'No matches.';
+  $<HTMLButtonElement>('replace-all').disabled = total === 0;
+  const el = (tag: string, cls: string, text?: string) => {
+    const e = document.createElement(tag);
+    e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  };
+  list.replaceChildren(...lastResults.flatMap(({ path, matches }) => {
+    const head = el('div', 'search-file', path);
+    head.append(el('span', 'search-count', String(matches.length)));
+    return [head, ...matches.map((m) => {
+      const b = el('button', 'search-hit') as HTMLButtonElement;
+      b.append(el('span', 'search-line', String(m.line)));
+      // A window of the line around the match, the match highlighted.
+      const start = Math.max(0, m.from - m.lineFrom - 30);
+      const before = m.lineText.slice(start, m.from - m.lineFrom);
+      const after = m.lineText.slice(m.to - m.lineFrom, m.to - m.lineFrom + 80);
+      b.append(document.createTextNode((start > 0 ? '…' : '') + before.trimStart()), el('mark', '', m.text.split('\n')[0]), document.createTextNode(after));
+      b.title = `${path}:${m.line}`;
+      b.onclick = () => void revealMatch(path, m.from, m.to);
+      return b;
+    })];
+  }));
+}
+
+/** Go to (and select) a match: in the open file, inline in an included one, or by opening its file. */
+async function revealMatch(path: string, from: number, to: number) {
+  ensureEditorVisible();
+  hideViewer();
+  if (current?.path === path) return revealIn(view, from, to);
+  const src = reviewSources().find((s) => s.path === path);
+  if (src) return src.reveal(from, to);
+  await openFile(path);
+  revealIn(view, from, to);
+}
+
+async function replaceAll() {
+  const o = searchOptions();
+  const re = compileQuery(o);
+  if (!(re instanceof RegExp) || !lastResults.length) return;
+  const replacement = $<HTMLInputElement>('replace-input').value;
+  const count = lastResults.reduce((n, r) => n + r.matches.length, 0);
+  if (!confirm(`Replace ${count} match${count === 1 ? '' : 'es'} in ${lastResults.length} file${lastResults.length === 1 ? '' : 's'} with "${replacement}"?\n\nThis isn't recorded as tracked changes. Each file's edit can be undone in that file.`)) return;
+  let done = 0;
+  for (const { path } of lastResults) {
+    const f = await loadFile(path);
+    const state = liveState(f);
+    const matches = findMatches(state.doc.toString(), re, Infinity);
+    if (!matches.length) continue;
+    const spec = {
+      changes: matches.map((m) => ({ from: m.from, to: m.to, insert: replacementFor(m.text, re, replacement, o.regex) })),
+      annotations: reviewAction.of(true), // a deliberate edit: not turned into \replaced{..}{..}
+    };
+    if (f === current) view.dispatch(spec); else dispatchTo(f, spec);
+    done += matches.length;
+  }
+  renderDirty();
+  scheduleAutosave();
+  setStatus(`Replaced ${done} match${done === 1 ? '' : 'es'}.`);
+  void runSearch();
+}
+
+{
+  let timer: number | undefined;
+  const later = () => { clearTimeout(timer); timer = window.setTimeout(() => void runSearch(), 200); };
+  $('search-input').addEventListener('input', later);
+  for (const id of ['search-case', 'search-word', 'search-regex']) $(id).addEventListener('change', () => void runSearch());
+  $<HTMLFormElement>('search-form').onsubmit = (e) => { e.preventDefault(); void runSearch(); };
+  $('replace-all').onclick = () => void replaceAll();
+  // Ctrl+Shift+F / ⌘⇧F: search the project, starting from the selected text.
+  window.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'f') {
+      e.preventDefault();
+      const ed = activeEditor()?.v ?? view;
+      const sel = ed.state.sliceDoc(ed.state.selection.main.from, ed.state.selection.main.to);
+      if (sel && !sel.includes('\n')) $<HTMLInputElement>('search-input').value = sel;
+      showSidebarTab('search');
+      $<HTMLInputElement>('search-input').select();
+    }
+  });
+  window.addEventListener('focus', () => diskText.clear()); // files may have changed outside
+}
 
 // ---------- conflict banner ----------
 
@@ -732,6 +873,150 @@ async function showNormalPdf() {
   await pdf.load(api.pdfUrl(main));
   showingDiffPdf = false;
   $('pdf-title').textContent = 'PDF';
+  void refreshPages();
+}
+
+// ---------- pages: where the PDF's pages fall in the source ----------
+
+let pageInfo: { pages: number; files: Record<string, [number, number][]> } | null = null;
+/** Per file: [line, page] where a new page begins, in document order across \input files. */
+let pageBreaksByFile = new Map<string, [number, number][]>();
+
+async function refreshPages() {
+  if (!main) return;
+  try { pageInfo = await api.pageMap(main); } catch { pageInfo = null; }
+  // The root file's preamble can put output anywhere (e.g. title-page extras): ignore its lines.
+  const mainFile = open.get(main);
+  const lines = pageInfo?.files[main];
+  if (mainFile && lines) {
+    const doc = liveState(mainFile).doc;
+    const begin = /\\begin\s*\{document\}/.exec(doc.toString());
+    if (begin) {
+      const first = doc.lineAt(begin.index).number;
+      pageInfo!.files[main] = lines.filter(([l]) => l > first);
+    }
+  }
+  await computePageBreaks();
+  applyPageBreaks();
+  updatePageBadge();
+  scheduleToc(); // included files may have just been loaded
+}
+
+const FLOAT_BEGIN = /\\begin\s*\{(figure|table|algorithm|teaserfigure|wrapfigure|wraptable|sidewaysfigure|sidewaystable|SCfigure)\*?\}/;
+const FLOAT_END = /\\end\s*\{(figure|table|algorithm|teaserfigure|wrapfigure|wraptable|sidewaysfigure|sidewaystable|SCfigure)\*?\}/;
+/** Lines inside figures and tables: floats go where they fit, so they don't mark where pages break. */
+function floatLines(state: EditorState): Set<number> {
+  const out = new Set<number>();
+  let depth = 0;
+  for (let n = 1; n <= state.doc.lines; n++) {
+    const t = state.doc.line(n).text;
+    if (FLOAT_BEGIN.test(t)) depth++;
+    if (depth > 0) out.add(n);
+    if (FLOAT_END.test(t)) depth = Math.max(0, depth - 1);
+  }
+  return out;
+}
+
+async function computePageBreaks() {
+  const info = pageInfo;
+  if (!info || !info.pages || !main) { pageBreaksByFile = new Map(); return; }
+  // Every source line with output, in reading order across \input files.
+  const flat: { path: string; line: number; page: number }[] = [];
+  const seen = new Set<string>();
+  const walk = async (path: string, state: EditorState, root: boolean) => {
+    seen.add(path);
+    const floats = floatLines(state);
+    // In the root file, only the body: the preamble's output (title-page extras) goes anywhere.
+    const begin = root ? /\\begin\s*\{document\}/.exec(state.doc.toString()) : null;
+    const firstBodyLine = begin ? state.doc.lineAt(begin.index).number + 1 : 1;
+    type Ev = { line: number; page?: number; include?: string };
+    const events: Ev[] = (info.files[path] ?? [])
+      .filter(([l]) => !floats.has(l) && l >= firstBodyLine)
+      .map(([line, page]) => ({ line, page }));
+    for (const part of fileParts(state)) {
+      if (part.kind !== 'include') continue;
+      const inc = resolveInclude(part.rel);
+      if (inc && !seen.has(inc) && supportsVisual(inc)) events.push({ line: state.doc.lineAt(part.pos).number, include: inc });
+    }
+    events.sort((a, b) => a.line - b.line || Number(!!a.include) - Number(!!b.include));
+    for (const e of events) {
+      if (!e.include) { flat.push({ path, line: e.line, page: e.page! }); continue; }
+      // Included files are loaded (not shown) so their lines count, in reading order.
+      const f = await loadFile(e.include).catch(() => null);
+      if (f) await walk(e.include, parsed(liveState(f)), false);
+    }
+  };
+  const mainFile = await loadFile(main).catch(() => null);
+  if (mainFile) await walk(main, parsed(liveState(mainFile)), true);
+
+  // A page begins at the first line on it, if the lines after it agree (one odd line, e.g. a
+  // footnote or a margin note set on a later page, doesn't count).
+  const result = new Map<string, [number, number][]>();
+  let maxPage = 0;
+  flat.forEach((e, i) => {
+    if (e.page <= maxPage) return;
+    const next = flat.slice(i + 1, i + 3);
+    if (next.length && !next.some((n) => n.page >= e.page)) return;
+    if (maxPage > 0) {
+      const list = result.get(e.path) ?? [];
+      list.push([e.line, e.page]);
+      result.set(e.path, list);
+    }
+    maxPage = e.page;
+  });
+  pageBreaksByFile = result;
+}
+
+function applyPageBreaks() {
+  if (current) view.dispatch({ effects: setPageBreaks.of(pageBreaksByFile.get(current.path) ?? []) });
+  for (const [path, v] of nested) v.dispatch({ effects: setPageBreaks.of(pageBreaksByFile.get(path) ?? []) });
+}
+
+/** The page a line of `path` lands on (the nearest line before it with output), or null. */
+function pageOfLine(path: string, line: number): number | null {
+  const entries = pageInfo?.files[path];
+  if (!entries?.length) return null;
+  let lo = 0, hi = entries.length - 1, best = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (entries[mid][0] <= line) { best = mid; lo = mid + 1; } else hi = mid - 1;
+  }
+  return entries[Math.max(best, 0)][1];
+}
+
+/** "Page 4 of 12" for the part of the document on screen. */
+function updatePageBadge() {
+  const badge = $('page-badge');
+  const pages = pageInfo?.pages ?? 0;
+  if (!pages || !current || viewer.path) { badge.hidden = true; return; }
+  const r = view.scrollDOM.getBoundingClientRect();
+  const c = view.contentDOM.getBoundingClientRect();
+  const x = c.left + Math.min(60, c.width / 3);
+  const y = r.top + Math.min(120, r.height / 3);
+  const at = document.elementFromPoint(x, y);
+  let page: number | null = null;
+  for (const [path, v] of nested) {
+    if (at && v.dom.contains(at)) {
+      const pos = v.posAtCoords({ x, y });
+      if (pos !== null) page = pageOfLine(path, v.state.doc.lineAt(pos).number);
+    }
+  }
+  if (page === null) {
+    const pos = view.posAtCoords({ x, y }, false);
+    if (pos !== null) page = pageOfLine(current.path, view.state.doc.lineAt(pos).number);
+  }
+  badge.textContent = page ? `Page ${page} of ${pages}` : `${pages} page${pages === 1 ? '' : 's'}`;
+  badge.title = 'Where this part of the text is in the PDF, as of the last compile';
+  badge.hidden = false;
+}
+{
+  $('editor').append($('page-badge')); // over the text, not the review panel
+  let queued = false;
+  view.scrollDOM.addEventListener('scroll', () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; updatePageBadge(); });
+  }, { passive: true });
 }
 
 async function findInPdf() {

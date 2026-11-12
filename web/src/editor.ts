@@ -11,6 +11,7 @@ import { visualDecorations, enterNewParagraph } from './visual/decorations.ts';
 import { reviewHighlight } from './review/highlight.ts';
 import { trackChanges } from './review/track.ts';
 import { addComment, addOutline, suggestDeletion } from './review/commands.ts';
+import { pageBreaks } from './pages.ts';
 import { compareExtension } from './compare/diff.ts';
 import { noteMacroFacet } from './review/model.ts';
 import { selectionToolbar } from './review/selection-toolbar.ts';
@@ -57,6 +58,7 @@ export const supportsVisual = (path: string) => /\.(tex|ltx)$/i.test(path);
 export function editorExtensions(hooks: EditorHooks): Extension[] {
   return [
     basicSetup,
+    pageBreaks,
     EditorView.lineWrapping,
     theme,
     highlight,

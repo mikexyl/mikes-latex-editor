@@ -2,6 +2,7 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 import path from 'node:path';
 import { texEnv } from './tex.ts';
 import { BUILD_DIR, compileFile, pdfPathFor, type CompileResult } from './compile.ts';
@@ -46,6 +47,52 @@ export async function synctexForward(root: string, main: string, file: string, l
 }
 
 /** PDF point -> source file (relative to root) and line. */
+/**
+ * Which PDF page each source line ends up on, read from the SyncTeX file of the last compile: for
+ * every project file, [line, page] pairs (the page where most of the line's output is). Used to
+ * show page breaks and page numbers in the editor.
+ */
+export async function synctexPages(root: string, main: string): Promise<{ pages: number; files: Record<string, [number, number][]> }> {
+  const file = pdfFor(root, main).replace(/\.pdf$/, '.synctex.gz');
+  let text: string;
+  try { text = gunzipSync(await fs.readFile(file)).toString('utf8'); } catch { return { pages: 0, files: {} }; }
+  const tags = new Map<string, string>(); // SyncTeX tag -> project-relative path (project files only)
+  const counts = new Map<string, Map<number, Map<number, number>>>(); // path -> line -> page -> records
+  let page = 0;
+  let pages = 0;
+  const rootAbs = path.resolve(root);
+  for (const l of text.split('\n')) {
+    const c = l.charCodeAt(0);
+    if (c === 123 /* { */) { page = Number(l.slice(1)); pages = Math.max(pages, page); continue; }
+    if (l.startsWith('Input:')) {
+      const m = /^Input:(\d+):(.*)$/.exec(l);
+      if (!m) continue;
+      const abs = path.resolve(m[2]);
+      if (abs.startsWith(rootAbs + path.sep) && !abs.includes(`${path.sep}${BUILD_DIR}${path.sep}`)) {
+        tags.set(m[1], path.relative(rootAbs, abs).split(path.sep).join('/'));
+      }
+      continue;
+    }
+    if (!page) continue;
+    const m = /^[[(hvxkg$](\d+),(\d+)/.exec(l);
+    if (!m) continue;
+    const p = tags.get(m[1]);
+    if (!p) continue;
+    const line = Number(m[2]);
+    let lines = counts.get(p);
+    if (!lines) counts.set(p, (lines = new Map()));
+    let byPage = lines.get(line);
+    if (!byPage) lines.set(line, (byPage = new Map()));
+    byPage.set(page, (byPage.get(page) ?? 0) + 1);
+  }
+  const files: Record<string, [number, number][]> = {};
+  for (const [p, lines] of counts) {
+    files[p] = [...lines].map(([line, byPage]) => [line, [...byPage].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0][0]] as [number, number])
+      .sort((a, b) => a[0] - b[0]);
+  }
+  return { pages, files };
+}
+
 export async function synctexBackward(root: string, main: string, page: number, x: number, y: number): Promise<{ file: string; line: number } | null> {
   const r = await run('synctex', ['edit', '-o', `${page}:${x}:${y}:${pdfFor(root, main)}`], { cwd: root });
   const input = /^Input:(.+)$/m.exec(r.stdout)?.[1];

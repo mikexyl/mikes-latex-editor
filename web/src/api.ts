@@ -109,6 +109,10 @@ export const api = {
 
   diffPdfUrl: (main: string) => withRoot(`/api/diff/pdf?main=${q(main)}&t=${Date.now()}`),
 
+  /** For each project file, [line, page] pairs from the last compile's SyncTeX data. */
+  pageMap: (main: string) =>
+    call(`/api/synctex/pages?main=${q(main)}`).then(json<{ pages: number; files: Record<string, [number, number][]> }>),
+
   projects: () => call('/api/projects').then(json<{ current: string; recent: RecentProject[] }>),
 
   openProject: (path: string) =>

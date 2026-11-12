@@ -59,6 +59,12 @@ packages, or switches to the system's TeX.
   Accept, Reject, Resolve and Done, one at a time or all at once.
 - **Source ↔ PDF**: *Find in PDF* (⌘⌥J / Ctrl+Alt+J) jumps to the cursor's spot in the PDF, and
   double-clicking the PDF jumps to the source, across `\input` files.
+- **Search all files** (sidebar *Search*, Ctrl+Shift+F / ⌘⇧F): every `.tex`, `.bib` and `.md`
+  file, including unsaved edits, with match case, whole word, regular expressions and *Replace all*.
+- **Contents** (sidebar): the document's sections across `\input` files, numbered as in the PDF;
+  click one to go there.
+- **Pages while you write**: after a compile, thin "Page 5" rules mark where the PDF's pages
+  begin, and a badge shows which page you're looking at ("Page 4 of 16").
 - **Compare with a git commit**: see what changed since then, plus a latexdiff PDF if
   [latexdiff](https://ctan.org/pkg/latexdiff) is installed.
 - **View figures and notes**: images, PDFs and Markdown files (rendered, with math) open right in
