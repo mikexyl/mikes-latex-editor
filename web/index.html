@@ -168,7 +168,14 @@
     </div>
 
     <main class="layout" id="layout">
-      <nav class="files" id="files" aria-label="Project files"></nav>
+      <nav class="files" id="files" aria-label="Project files and contents">
+        <div class="side-tabs" role="tablist" aria-label="Sidebar">
+          <button role="tab" id="tab-files" aria-selected="true" aria-controls="file-tree">Files</button>
+          <button role="tab" id="tab-toc" aria-selected="false" aria-controls="toc" title="The document's sections, including \input files: click to go there">Contents</button>
+        </div>
+        <div class="file-tree" id="file-tree" role="tabpanel"></div>
+        <div class="toc" id="toc" role="tabpanel" hidden></div>
+      </nav>
 
       <section class="editor-pane" id="editor-pane">
         <div class="pane-header">

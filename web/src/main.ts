@@ -18,6 +18,7 @@ import { refreshVisual } from './visual/decorations.ts';
 import { PdfViewer } from './pdf.ts';
 import { FileViewer, VIEWABLE } from './viewer.ts';
 import { MARKDOWN } from './markdown.ts';
+import { fileParts, numberHeadings, type TocEntry } from './toc.ts';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -44,6 +45,7 @@ const extensions = editorExtensions({
   onChange: () => {
     renderDirty();
     review.schedule();
+    scheduleToc();
     scheduleCompareStats();
     scheduleAutosave();
     view.requestMeasure(); // an inline included file may have changed height
@@ -200,6 +202,7 @@ async function openFile(path: string): Promise<OpenFile> {
   revealInTree(path);
   renderModeToggle();
   review.render();
+  if (tocShown()) renderToc();
   void applyCompareBase(f);
   $('current-file').textContent = path;
   renderTree();
@@ -528,6 +531,130 @@ function revealIncluded(f: OpenFile, anchor: number, pos: number) {
   requestAnimationFrame(wait);
 }
 
+// ---------- Contents: the document's headings ----------
+
+let tocEntries: TocEntry[] = [];
+let tocTimer: number | undefined;
+const tocShown = () => !$('toc').hidden;
+function scheduleToc() {
+  clearTimeout(tocTimer);
+  tocTimer = window.setTimeout(() => { if (tocShown()) renderToc(); }, 300);
+}
+
+/** The open file's headings, and those of the files it includes, in reading order. */
+function collectToc(): TocEntry[] {
+  if (!current) return [];
+  const raw: Parameters<typeof numberHeadings>[0] = [];
+  const seen = new Set([current.path]);
+  let appendix = false;
+  const walk = (state: EditorState, path: string, anchor: number | null) => {
+    for (const part of fileParts(state)) {
+      if (part.kind === 'appendix') appendix = true;
+      else if (part.kind === 'heading') {
+        raw.push({ level: part.level, title: part.title, starred: part.starred, appendix, path, pos: part.pos, anchor: anchor ?? part.pos });
+      } else {
+        const inc = resolveInclude(part.rel);
+        if (!inc || seen.has(inc) || !supportsVisual(inc)) continue;
+        seen.add(inc);
+        const f = open.get(inc);
+        if (!f) {
+          if (!unreadable.has(inc)) void loadFile(inc).then(() => scheduleToc(), () => unreadable.add(inc));
+          continue;
+        }
+        walk(parsed(liveState(f)), inc, anchor ?? part.pos);
+      }
+    }
+  };
+  walk(view.state, current.path, null);
+  return numberHeadings(raw);
+}
+
+function renderToc() {
+  tocEntries = collectToc();
+  const box = $('toc');
+  if (!tocEntries.length) {
+    const p = document.createElement('p');
+    p.className = 'toc-empty';
+    p.textContent = current ? 'No sections in this file or the files it includes.' : 'No file open.';
+    box.replaceChildren(p);
+    return;
+  }
+  box.replaceChildren(...tocEntries.map((e, i) => {
+    const b = document.createElement('button');
+    b.className = `toc-item lvl-${e.level}`;
+    b.dataset.index = String(i);
+    if (e.number) {
+      const n = document.createElement('span');
+      n.className = 'toc-num';
+      n.textContent = e.number;
+      b.append(n);
+    }
+    b.append(e.title || '(untitled)');
+    b.title = e.path === current?.path ? e.title : `${e.title} (${e.path})`;
+    b.onclick = () => goToHeading(e);
+    return b;
+  }));
+  markCurrentHeading();
+}
+
+function goToHeading(e: TocEntry) {
+  if (!current) return;
+  ensureEditorVisible();
+  hideViewer();
+  if (e.path === current.path) {
+    view.dispatch({ selection: { anchor: e.pos }, effects: EditorView.scrollIntoView(e.pos, { y: 'start', yMargin: 40 }) });
+    view.focus();
+    return;
+  }
+  const f = open.get(e.path);
+  if (f) revealIncluded(f, e.anchor, e.pos);
+}
+
+/** Highlight the section the cursor is in. */
+function markCurrentHeading() {
+  if (!tocShown() || !current || !tocEntries.length) return;
+  const active = activeEditor();
+  if (!active) return;
+  const head = active.v.state.selection.main.head;
+  const inMain = active.path === current.path;
+  // Where the cursor is, as (position in the open file, position in the included file).
+  const anchorOfActive = inMain ? head : tocEntries.find((e) => e.path === active.path)?.anchor
+    ?? (findIncludeLine(active.path) ?? 0);
+  const key = (a: number, b: number) => [a, b] as const;
+  const cur = inMain ? key(head, Infinity) : key(anchorOfActive, head);
+  let best = -1;
+  tocEntries.forEach((e, i) => {
+    const k = e.path === current!.path ? key(e.pos, -Infinity) : key(e.anchor, e.path === active.path ? e.pos : -Infinity);
+    if (k[0] < cur[0] || (k[0] === cur[0] && k[1] <= cur[1])) best = i;
+  });
+  for (const b of $('toc').querySelectorAll<HTMLElement>('.toc-item')) {
+    const on = Number(b.dataset.index) === best;
+    b.classList.toggle('current', on);
+    if (on) b.scrollIntoView({ block: 'nearest' });
+  }
+}
+/** Where the open file \input-s `path`, if it does directly. */
+function findIncludeLine(path: string): number | null {
+  for (const part of fileParts(view.state)) if (part.kind === 'include' && resolveInclude(part.rel) === path) return part.pos;
+  return null;
+}
+let markTimer: number | undefined;
+document.addEventListener('selectionchange', () => {
+  clearTimeout(markTimer);
+  markTimer = window.setTimeout(markCurrentHeading, 120);
+});
+
+function showSidebarTab(tab: 'files' | 'toc') {
+  $('tab-files').setAttribute('aria-selected', String(tab === 'files'));
+  $('tab-toc').setAttribute('aria-selected', String(tab === 'toc'));
+  $('file-tree').hidden = tab !== 'files';
+  $('toc').hidden = tab !== 'toc';
+  store.set('sidebar-tab', tab);
+  if (tab === 'toc') renderToc();
+}
+$('tab-files').onclick = () => showSidebarTab('files');
+$('tab-toc').onclick = () => showSidebarTab('toc');
+
 // ---------- conflict banner ----------
 
 let conflictPath: string | null = null;
@@ -769,7 +896,7 @@ function revealInTree(path: string) {
 }
 
 function renderTree() {
-  const nav = $('files');
+  const nav = $('file-tree');
   nav.replaceChildren(
     ...project.tree.filter((e) => !isHidden(e.path)).map((e) => {
       const depth = e.path.split('/').length - 1;
@@ -1184,6 +1311,7 @@ async function start() {
   void loadGitLog();
   await refreshProjectMacros(); // before the first render, so included files' math is right
   const first = main || project.tree.find((e) => e.type === 'file' && TEXT_EXT.test(e.path))?.path;
+  if (store.get('sidebar-tab') === 'toc') showSidebarTab('toc');
   if (first) await openFile(first);
   if (main) await saveAllAndCompile();
   else setStatus('No .tex file with \\documentclass found in this folder.', true);
