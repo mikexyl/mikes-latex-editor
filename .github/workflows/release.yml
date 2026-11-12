@@ -31,9 +31,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -44,7 +44,7 @@ jobs:
       # that builds it changes.
       - name: Restore bundled TeX Live
         id: tex-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: build/texlive
           key: texlive-${{ runner.os }}-${{ hashFiles('scripts/build-tex.mjs') }}
@@ -67,7 +67,7 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$app"
           "$app/Contents/Resources/texlive/bin/universal-darwin/pdflatex" --version | head -1
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.name }}
           path: ${{ matrix.files }}
@@ -82,7 +82,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: out
           merge-multiple: true
