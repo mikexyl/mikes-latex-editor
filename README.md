@@ -62,6 +62,8 @@ packages, or switches to the system's TeX.
   [latexdiff](https://ctan.org/pkg/latexdiff) is installed.
 - **View figures**: images and PDFs in the project open right in the editor.
 - **Reload from disk** (↻) after git or another tool changed files; edits autosave.
+- **Several windows**, each with its own project: the dock's *New Window*, Ctrl+Shift+N (⌘⇧N on
+  the Mac), or *Open in new window* in the project picker.
 - ⚙ **Settings**: light or dark theme, font size, and text width.
 
 ## Running from source

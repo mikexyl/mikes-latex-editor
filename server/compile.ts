@@ -64,10 +64,10 @@ const reviewFallbacks = (note: string) => String.raw`\AtBeginDocument{%
 ` + [...new Set([note, 'note'])].map(noteFallback).join('') + `}
 `;
 
-/** The note macro (without backslash) of the open project, as the editor is configured. */
-let noteMacro = 'revnote';
-export function setNoteMacro(name: unknown) {
-  if (typeof name === 'string' && /^[A-Za-z]+$/.test(name)) noteMacro = name;
+/** Each project's note macro (without backslash), as the editor is configured for it. */
+const noteMacros = new Map<string, string>();
+export function setNoteMacro(root: string, name: unknown) {
+  if (typeof name === 'string' && /^[A-Za-z]+$/.test(name)) noteMacros.set(root, name);
 }
 const FALLBACK_FILE = 'latex-editor-review.tex';
 
@@ -76,7 +76,7 @@ async function runLatexmk(root: string, main: string, outDir: string, env: NodeJ
   const cwd = path.join(root, cwdDir);
   const outAbs = path.join(root, outDir);
   await fs.mkdir(outAbs, { recursive: true });
-  await fs.writeFile(path.join(root, BUILD_DIR, FALLBACK_FILE), reviewFallbacks(noteMacro));
+  await fs.writeFile(path.join(root, BUILD_DIR, FALLBACK_FILE), reviewFallbacks(noteMacros.get(root) ?? 'revnote'));
   const jobname = path.basename(main).replace(/\.tex$/, '');
   // Paths given to TeX are relative to cwd (TeX doesn't cope with spaces in paths).
   const rel = (p: string) => path.relative(cwd, p).split(path.sep).join('/') || '.';

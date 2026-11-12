@@ -1,6 +1,7 @@
 // Project picker: recent projects plus a folder browser. Switching saves open files, tells the
-// server to open the new folder, and reloads the page for a clean start in that project.
-import { api, type FolderListing, type RecentProject } from './api.ts';
+// server to open the new folder, and reloads the page for a clean start in that project. In the
+// desktop app a project can also open in a new window, next to this one.
+import { api, rememberWindowProject, type FolderListing, type RecentProject } from './api.ts';
 import { desktop } from './desktop.ts';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -38,7 +39,21 @@ async function switchTo(path: string) {
   }
   try {
     await api.openProject(path);
+    rememberWindowProject(path);
     location.reload();
+  } catch (e) {
+    $('pd-note').textContent = (e as Error).message;
+  }
+}
+
+const canOpenWindows = () => !!desktop?.newWindow;
+
+/** Open a project in a new window; this one stays as it is. */
+async function openInNewWindow(path: string) {
+  try {
+    await api.openProject(path);
+    await desktop!.newWindow!(path);
+    dialog().close();
   } catch (e) {
     $('pd-note').textContent = (e as Error).message;
   }
@@ -62,7 +77,15 @@ function renderRecent(recent: RecentProject[]) {
     forget.title = 'Remove from recent projects (the folder is not touched)';
     forget.setAttribute('aria-label', `Remove ${r.name} from recent projects`);
     forget.onclick = async () => renderRecent((await api.forgetProject(r.path)).recent);
-    li.append(open, forget);
+    li.append(open);
+    if (canOpenWindows() && r.exists) {
+      const win = el('button', 'pd-new-window link', '⧉') as HTMLButtonElement;
+      win.title = 'Open in a new window';
+      win.setAttribute('aria-label', `Open ${r.name} in a new window`);
+      win.onclick = () => void openInNewWindow(r.path);
+      li.append(win);
+    }
+    li.append(forget);
     return li;
   }));
 }
@@ -119,6 +142,11 @@ export function initProjectPicker(h: Hooks) {
   $('pd-up').onclick = () => { if (listing?.parent) void browse(listing.parent); };
   $('pd-home').onclick = () => void browse('~');
   $('pd-open').onclick = () => { if (listing) void switchTo(listing.path); };
+  if (canOpenWindows()) {
+    const b = $<HTMLButtonElement>('pd-open-new');
+    b.hidden = false;
+    b.onclick = () => { if (listing) void openInNewWindow(listing.path); };
+  }
   // In the desktop app: the system's own folder chooser.
   if (desktop) {
     const choose = $<HTMLButtonElement>('pd-choose');
@@ -133,6 +161,11 @@ export function initProjectPicker(h: Hooks) {
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') {
       e.preventDefault();
       void openProjectPicker();
+    }
+    // Ctrl+Shift+N: a new window (on the Mac, the File menu's ⌘⇧N does it).
+    if (canOpenWindows() && desktop!.platform !== 'darwin' && e.ctrlKey && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'n') {
+      e.preventDefault();
+      void desktop!.newWindow!();
     }
   });
 }

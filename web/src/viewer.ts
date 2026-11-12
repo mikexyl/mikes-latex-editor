@@ -1,6 +1,7 @@
 // Viewer for the project's figure files (images and PDFs), shown over the editor in the editor
 // pane. The editor stays underneath, untouched, so closing the viewer returns to it as it was.
 import { PdfViewer } from './pdf.ts';
+import { withRoot } from './api.ts';
 
 /** Files the viewer can show. Others (EPS, ...) stay unopenable in the file tree. */
 export const VIEWABLE = /\.(pdf|png|jpe?g|gif|svg|webp|bmp|avif)$/i;
@@ -27,7 +28,7 @@ export class FileViewer {
     this.path = path;
     $('file-viewer').hidden = false;
     $('fv-info').textContent = '';
-    const url = `/api/asset?path=${encodeURIComponent(path)}&t=${Date.now()}`;
+    const url = withRoot(`/api/asset?path=${encodeURIComponent(path)}&t=${Date.now()}`);
     const body = $('fv-body');
     if (/\.pdf$/i.test(path)) {
       const box = document.createElement('div');

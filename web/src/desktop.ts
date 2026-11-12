@@ -3,6 +3,8 @@ type Desktop = {
   platform: string;
   pickFolder(defaultPath?: string): Promise<string | null>;
   revealPath(path: string): Promise<void>;
+  /** Missing in desktop apps older than multi-window support. */
+  newWindow?(project?: string): Promise<void>;
 };
 
 export const desktop: Desktop | null = (window as unknown as { desktop?: Desktop }).desktop ?? null;

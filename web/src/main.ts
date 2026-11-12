@@ -1,10 +1,10 @@
 import { EditorView } from '@codemirror/view';
 import type { EditorState, Text, TransactionSpec } from '@codemirror/state';
 import { ensureSyntaxTree } from '@codemirror/language';
-import { initProjectPicker } from './projects.ts';
+import { initProjectPicker, openProjectPicker } from './projects.ts';
 import { initSettings } from './settings.ts';
 import { initTex, installProviding, texStatus } from './tex.ts';
-import { api, setProjectRoot, ConflictError, type Project, type CompileResult, type Problem } from './api.ts';
+import { api, setProjectRoot, rememberWindowProject, rememberedWindowProject, ConflictError, type Project, type CompileResult, type Problem } from './api.ts';
 import { editorExtensions, createState, goToLine, setModes, supportsVisual, type Modes } from './editor.ts';
 import { ReviewPanel, type ReviewSource } from './review/panel.ts';
 import { findIncludes } from './review/model.ts';
@@ -1087,10 +1087,9 @@ initProjectPicker({ beforeSwitch: saveAll, setStatus });
 initTex();
 initSettings({ onLayoutChange: () => { view.requestMeasure(); for (const v of nested.values()) v.requestMeasure(); } });
 
-// Another window switched this server to a different project: this page's files are stale.
-window.addEventListener('project-switched', (e) => {
-  const other = (e as CustomEvent<string>).detail;
-  $('switched-text').textContent = `The editor was switched to another project${other ? ` (${other})` : ''} in another window. Unsaved edits here can't be saved.`;
+// This window's project isn't open on the server any more (it restarted while the page stayed open).
+window.addEventListener('project-switched', () => {
+  $('switched-text').textContent = 'This window\'s project is no longer open in the editor (it was restarted). Unsaved edits here can\'t be saved.';
   $('switched-banner').hidden = false;
 });
 $('switched-reload').onclick = () => location.reload();
@@ -1098,9 +1097,29 @@ $('switched-reload').onclick = () => location.reload();
 // Keep-alive for the background server's idle shutdown (see `--idle-exit`).
 setInterval(() => { fetch('/api/ping').catch(() => {}); }, 30_000);
 
+/**
+ * The project this window shows: one it was opened for (?project=, from "Open in new window"), the
+ * one it had before a reload, or else the project opened last.
+ */
+async function loadProject(): Promise<Project> {
+  const params = new URLSearchParams(location.search);
+  const asked = params.get('project') ?? rememberedWindowProject();
+  if (asked) {
+    setProjectRoot(asked);
+    try { return await api.project(); } catch { /* not open on the server (any more) */ }
+    setProjectRoot(undefined);
+    $('switched-banner').hidden = true;
+  }
+  return api.project();
+}
+
 async function start() {
-  project = await api.project();
+  const params = new URLSearchParams(location.search);
+  if (params.has('project') || params.has('pick')) history.replaceState(null, '', location.pathname);
+  project = await loadProject();
   setProjectRoot(project.root);
+  rememberWindowProject(project.root);
+  if (params.has('pick')) void openProjectPicker(); // a new window: which project?
   $('project-name').textContent = `${project.name} ▾`;
   $('project-name').title = project.root;
 

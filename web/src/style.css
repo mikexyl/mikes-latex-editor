@@ -602,6 +602,7 @@ button.project-name:hover { border-color: var(--border); background: var(--hover
 .pd-recent-item.current .pd-recent-name { color: var(--accent); }
 .pd-recent-item.missing { opacity: 0.6; }
 .pd-forget { font-size: 12px; }
+.pd-new-window { font-size: 14px; }
 .pd-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 0 5px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
 .pd-badge.missing { background: var(--missing-bg); color: var(--error); }
 .pd-badge.tex { background: var(--chip-bg); color: var(--chip-text); }
@@ -905,3 +906,4 @@ body.zen .editor-pane { background: var(--panel); }
 .rv-outline-text { background: var(--outline-bg); color: var(--outline-text); }
 .rv-outline-author { color: var(--outline-strong); font-weight: 700; }
 .review-tag-outline { color: var(--outline-strong); }
+.pd-footer .pd-note { flex: 1; }

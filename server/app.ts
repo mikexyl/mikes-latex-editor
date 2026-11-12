@@ -1,4 +1,5 @@
-// The editor's back end: serves the UI and a small API over one LaTeX project folder at a time.
+// The editor's back end: serves the UI and a small API over LaTeX project folders. Each window has
+// its own project (sent with every request); several windows can have different projects open.
 // Started by the command line (server/index.ts) or inside the desktop app (electron/main.ts).
 import express from 'express';
 import http from 'node:http';
@@ -32,8 +33,10 @@ export type ServerOptions = {
 export type RunningServer = { port: number; url: string; close(): Promise<void>; root(): string };
 
 export async function startServer(opts: ServerOptions): Promise<RunningServer> {
-  /** The open project folder. Switched from the UI via POST /api/projects/open. */
+  /** The project a window without one of its own opens: the one opened last (POST /api/projects/open). */
   let root = path.resolve(opts.root);
+  /** Projects opened in this session. A window's requests may name any of these as theirs. */
+  const opened = new Set([root]);
   const HOST = opts.host ?? '127.0.0.1'; // local only by default: the API can write files
   opts.host = HOST;
   await addRecent(root).catch(() => {});
@@ -41,7 +44,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   const IGNORED = new Set(['.git', 'node_modules', BUILD_DIR, '.DS_Store']);
 
   /** Resolve a project-relative path, refusing anything outside the project root. */
-  function resolveInRoot(rel: unknown): string {
+  function resolveInRoot(root: string, rel: unknown): string {
     if (typeof rel !== 'string' || rel === '') throw new HttpError(400, 'missing path');
     const abs = path.resolve(root, rel);
     if (abs !== root && !abs.startsWith(root + path.sep)) throw new HttpError(403, 'path outside project');
@@ -54,7 +57,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
 
   type Entry = { path: string; type: 'file' | 'dir' };
 
-  async function listTree(dir = root, out: Entry[] = []): Promise<Entry[]> {
+  async function listTree(root: string, dir = root, out: Entry[] = []): Promise<Entry[]> {
     const entries = await fs.readdir(dir, { withFileTypes: true });
     entries.sort((a, b) => Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name));
     for (const e of entries) {
@@ -63,7 +66,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
       const rel = path.relative(root, abs).split(path.sep).join('/');
       if (e.isDirectory()) {
         out.push({ path: rel, type: 'dir' });
-        await listTree(abs, out);
+        await listTree(root, abs, out);
       } else if (e.isFile()) {
         out.push({ path: rel, type: 'file' });
       }
@@ -72,7 +75,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   }
 
   /** Root documents: .tex files that contain \documentclass. main.tex first. */
-  async function findMainCandidates(tree: Entry[]): Promise<string[]> {
+  async function findMainCandidates(root: string, tree: Entry[]): Promise<string[]> {
     const found: string[] = [];
     for (const e of tree) {
       if (e.type !== 'file' || !e.path.endsWith('.tex')) continue;
@@ -122,17 +125,21 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   const wrap = (fn: express.RequestHandler): express.RequestHandler => (req, res, next) =>
     Promise.resolve(fn(req, res, next)).catch(next);
 
-  // Requests made for one project must not land in another after a switch (e.g. from another tab
-  // or window): the client sends the root it loaded, and anything sent for a different one is
-  // refused, so it can't save a file into the wrong project.
+  // Each window works on its own project: it sends that project's folder with every request (the
+  // X-Project-Root header, or ?root= where a header can't be set, e.g. <img> and pdf.js). Without
+  // one, a request is for the project opened last. A folder not opened in this session (e.g. a page
+  // left open across a restart) is refused, so nothing is ever saved into an unexpected folder.
   app.use('/api', (req, res, next) => {
-    const expected = req.get('X-Project-Root');
-    if (expected !== undefined && expected !== root && !req.path.startsWith('/projects') && !req.path.startsWith('/fs') && !req.path.startsWith('/tex')) {
+    const asked = req.get('X-Project-Root') ?? (typeof req.query.root === 'string' ? req.query.root : undefined);
+    const global = req.path.startsWith('/projects') || req.path.startsWith('/fs') || req.path.startsWith('/tex');
+    if (asked !== undefined && !opened.has(asked) && !global) {
       res.status(409).json({ error: 'project switched', root });
       return;
     }
+    res.locals.root = asked !== undefined && opened.has(asked) ? asked : root;
     next();
   });
+  const rootOf = (res: express.Response) => res.locals.root as string;
 
   app.get('/api/ping', (_req, res) => { res.json({ ok: true }); });
 
@@ -145,7 +152,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
 
   // ---- projects: recent list, open, folder browsing ----
   app.get('/api/projects', wrap(async (_req, res) => {
-    res.json({ current: root, recent: await listRecent() });
+    res.json({ current: rootOf(res), recent: await listRecent() });
   }));
 
   app.post('/api/projects/open', wrap(async (req, res) => {
@@ -153,6 +160,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     try { dir = checkProjectDir(String(req.body?.path ?? '')); }
     catch (e) { throw new HttpError(400, (e as Error).message); }
     root = dir;
+    opened.add(dir);
     await addRecent(dir);
     console.log(`Project:      ${root}`);
     res.json({ root });
@@ -169,12 +177,14 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   }));
 
   app.get('/api/project', wrap(async (_req, res) => {
-    const tree = await listTree();
-    res.json({ name: path.basename(root), root, tree, mains: await findMainCandidates(tree) });
+    const root = rootOf(res);
+    const tree = await listTree(root);
+    res.json({ name: path.basename(root), root, tree, mains: await findMainCandidates(root, tree) });
   }));
 
   app.get('/api/file', wrap(async (req, res) => {
-    const abs = resolveInRoot(req.query.path);
+    const root = rootOf(res);
+    const abs = resolveInRoot(root, req.query.path);
     const [content, stat] = await Promise.all([fs.readFile(abs, 'utf8'), fs.stat(abs)]);
     res.json({ content, mtime: stat.mtimeMs });
   }));
@@ -182,7 +192,8 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   // Write a file. If baseMtime is given and the file changed on disk since then, refuse with 409
   // so edits made outside the editor (git checkout, another editor) are never silently clobbered.
   app.put('/api/file', wrap(async (req, res) => {
-    const abs = resolveInRoot(req.query.path);
+    const root = rootOf(res);
+    const abs = resolveInRoot(root, req.query.path);
     if (typeof req.body !== 'string') throw new HttpError(400, 'body must be text/plain');
     const base = req.query.baseMtime !== undefined ? Number(req.query.baseMtime) : undefined;
     if (base !== undefined && existsSync(abs)) {
@@ -198,14 +209,16 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   }));
 
   app.post('/api/compile', wrap(async (req, res) => {
+    const root = rootOf(res);
     const main = req.body?.main;
-    resolveInRoot(main);
-    setNoteMacro(req.body?.noteMacro); // so the PDF can print the editor's notes (see compile.ts)
+    resolveInRoot(root, main);
+    setNoteMacro(root, req.body?.noteMacro); // so the PDF can print the editor's notes (see compile.ts)
     res.json(await compile(root, main));
   }));
 
   app.get('/api/pdf', wrap(async (req, res) => {
-    resolveInRoot(req.query.main);
+    const root = rootOf(res);
+    resolveInRoot(root, req.query.main);
     const pdf = pdfPathFor(root, String(req.query.main));
     if (!existsSync(pdf)) throw new HttpError(404, 'no PDF yet');
     res.setHeader('Cache-Control', 'no-store');
@@ -216,11 +229,12 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   // to the main file's folder (`base`), and the usual extensions are tried when none is given.
   const GRAPHICS_EXT = ['.pdf', '.png', '.jpg', '.jpeg', '.gif', '.svg'];
   app.get('/api/asset', wrap(async (req, res) => {
+    const root = rootOf(res);
     const base = String(req.query.base ?? '');
     const rel = path.posix.join(base, String(req.query.path ?? ''));
     const candidates = path.extname(rel) ? [rel] : GRAPHICS_EXT.map((e) => rel + e);
     for (const c of candidates) {
-      const abs = resolveInRoot(c);
+      const abs = resolveInRoot(root, c);
       if (existsSync(abs) && (await fs.stat(abs)).isFile()) {
         res.setHeader('Cache-Control', 'no-cache');
         res.sendFile(abs, { dotfiles: 'allow' });
@@ -232,42 +246,48 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
 
   // ---- SyncTeX: source <-> PDF ----
   app.get('/api/synctex/forward', wrap(async (req, res) => {
+    const root = rootOf(res);
     const main = String(req.query.main ?? '');
     const file = String(req.query.file ?? '');
-    resolveInRoot(main);
-    resolveInRoot(file);
+    resolveInRoot(root, main);
+    resolveInRoot(root, file);
     res.json({ boxes: await synctexForward(root, main, file, Number(req.query.line) || 1) });
   }));
 
   app.get('/api/synctex/backward', wrap(async (req, res) => {
+    const root = rootOf(res);
     const main = String(req.query.main ?? '');
-    resolveInRoot(main);
+    resolveInRoot(root, main);
     const hit = await synctexBackward(root, main, Number(req.query.page), Number(req.query.x), Number(req.query.y));
     res.json(hit ?? { file: null, line: null });
   }));
 
   // ---- git history and comparisons ----
   app.get('/api/git/log', wrap(async (_req, res) => {
+    const root = rootOf(res);
     const commits = await gitLog(root);
     res.json({ repo: commits !== null, commits: commits ?? [] });
   }));
 
   app.get('/api/git/show', wrap(async (req, res) => {
+    const root = rootOf(res);
     const file = String(req.query.path ?? '');
-    resolveInRoot(file);
+    resolveInRoot(root, file);
     const content = await gitShow(root, String(req.query.rev ?? ''), file);
     res.json({ exists: content !== null, content: content ?? '' });
   }));
 
   app.post('/api/diff', wrap(async (req, res) => {
+    const root = rootOf(res);
     const main = String(req.body?.main ?? '');
-    resolveInRoot(main);
+    resolveInRoot(root, main);
     res.json(await buildDiff(root, main, String(req.body?.rev ?? '')));
   }));
 
   app.get('/api/diff/pdf', wrap(async (req, res) => {
+    const root = rootOf(res);
     const main = String(req.query.main ?? '');
-    resolveInRoot(main);
+    resolveInRoot(root, main);
     const pdf = diffPdfPath(root, main);
     if (!existsSync(pdf)) throw new HttpError(404, 'no diff PDF');
     res.setHeader('Cache-Control', 'no-store');

@@ -31,7 +31,17 @@ export type FolderListing = {
 
 /** The project this page was loaded for; sent with every request (see server/index.ts). */
 let projectRoot: string | undefined;
-export const setProjectRoot = (root: string) => { projectRoot = root; };
+export const setProjectRoot = (root: string | undefined) => { projectRoot = root; };
+/** The project this window has open, kept across reloads (sessionStorage is per window). */
+const WINDOW_PROJECT = 'project-root';
+export function rememberWindowProject(root: string) {
+  try { sessionStorage.setItem(WINDOW_PROJECT, root); } catch { /* storage unavailable */ }
+}
+export function rememberedWindowProject(): string | null {
+  try { return sessionStorage.getItem(WINDOW_PROJECT); } catch { return null; }
+}
+/** `url` with this window's project in it, for requests that can't carry the header (<img>, pdf.js). */
+export const withRoot = (url: string) => (projectRoot ? `${url}&root=${encodeURIComponent(projectRoot)}` : url);
 
 /** fetch() that tells the server which project the request is for. */
 async function call(url: string, init: RequestInit = {}): Promise<Response> {
@@ -76,7 +86,7 @@ export const api = {
       body: JSON.stringify({ main, noteMacro }),
     }).then(json<CompileResult>),
 
-  pdfUrl: (main: string) => `/api/pdf?main=${q(main)}&t=${Date.now()}`,
+  pdfUrl: (main: string) => withRoot(`/api/pdf?main=${q(main)}&t=${Date.now()}`),
 
   syncForward: (main: string, file: string, line: number) =>
     call(`/api/synctex/forward?main=${q(main)}&file=${q(file)}&line=${line}`).then(json<{ boxes: PdfBox[] }>),
@@ -97,7 +107,7 @@ export const api = {
       body: JSON.stringify({ main, rev }),
     }).then(json<DiffResult>),
 
-  diffPdfUrl: (main: string) => `/api/diff/pdf?main=${q(main)}&t=${Date.now()}`,
+  diffPdfUrl: (main: string) => withRoot(`/api/diff/pdf?main=${q(main)}&t=${Date.now()}`),
 
   projects: () => call('/api/projects').then(json<{ current: string; recent: RecentProject[] }>),
 

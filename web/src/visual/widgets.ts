@@ -4,6 +4,7 @@ import { WidgetType, EditorView } from '@codemirror/view';
 import * as pdfjs from 'pdfjs-dist';
 import { renderMath, type Macros } from './math.ts';
 import { itemAt, resolveSpec, type ReviewKind } from '../review/model.ts';
+import { withRoot } from '../api.ts';
 
 // Served as-is by our server (server/index.ts), not through Vite.
 pdfjs.GlobalWorkerOptions.workerSrc = '/vendor/pdf.worker.min.mjs';
@@ -176,7 +177,7 @@ export function setAssetBase(dir: string) {
 }
 
 async function loadFigure(path: string): Promise<Rendered> {
-  const res = await fetch(`/api/asset?base=${encodeURIComponent(assetBase)}&path=${encodeURIComponent(path)}`);
+  const res = await fetch(withRoot(`/api/asset?base=${encodeURIComponent(assetBase)}&path=${encodeURIComponent(path)}`));
   if (!res.ok) return { error: `Figure not found: ${path}` };
   const blob = await res.blob();
   if (blob.type !== 'application/pdf') return { src: URL.createObjectURL(blob) };

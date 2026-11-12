@@ -100,7 +100,8 @@ function saveBounds(win: BrowserWindow) {
   } catch { /* not important */ }
 }
 
-let win: BrowserWindow | null = null;
+/** Open editor windows; each has its own project. */
+const windows = new Set<BrowserWindow>();
 let server: Awaited<ReturnType<typeof startServer>> | null = null;
 
 // The window's icon on Linux (macOS takes the bundle's). dist/ when built, web/public/ otherwise.
@@ -143,10 +144,18 @@ StartupNotify=true
   } catch { /* the window still works, just with a generic dock icon */ }
 }
 
-function createWindow(url: string) {
+/**
+ * Open an editor window on the server at `origin`. `query` says what it shows first: `project=<dir>`
+ * (a project opened for it), `pick=1` (the project picker), or nothing (the last project).
+ */
+function createWindow(origin: string, query = '') {
   const b = loadBounds();
-  win = new BrowserWindow({
-    x: b.x, y: b.y, width: b.width, height: b.height, minWidth: 700, minHeight: 450,
+  // Further windows open a little down and right of the one in front, not on top of it.
+  const front = BrowserWindow.getFocusedWindow() ?? [...windows].pop();
+  const fb = front?.getNormalBounds();
+  const at: Bounds = fb ? { ...fb, x: fb.x + 32, y: fb.y + 32 } : b;
+  const win = new BrowserWindow({
+    x: at.x, y: at.y, width: at.width, height: at.height, minWidth: 700, minHeight: 450,
     title: "Mike's",
     icon: process.platform === 'linux' ? windowIcon : undefined,
     show: false,
@@ -159,30 +168,37 @@ function createWindow(url: string) {
       spellcheck: true,
     },
   });
-  if (b.maximized) win.maximize();
-  win.once('ready-to-show', () => win?.show());
-  win.on('close', () => { if (win) saveBounds(win); });
-  win.on('closed', () => { win = null; });
+  if (!front && b.maximized) win.maximize();
+  windows.add(win);
+  win.once('ready-to-show', () => win.show());
+  win.on('close', () => saveBounds(win));
+  win.on('closed', () => { windows.delete(win); });
 
   // Links to the web open in the user's browser; the window itself never leaves the editor.
   win.webContents.setWindowOpenHandler(({ url: target }) => {
-    if (/^https?:/.test(target) && !target.startsWith(url)) void shell.openExternal(target);
+    if (/^https?:/.test(target) && !target.startsWith(origin)) void shell.openExternal(target);
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (e, target) => {
-    if (!target.startsWith(url)) { e.preventDefault(); if (/^https?:/.test(target)) void shell.openExternal(target); }
+    if (!target.startsWith(origin)) { e.preventDefault(); if (/^https?:/.test(target)) void shell.openExternal(target); }
   });
-  void win.loadURL(url);
+  void win.loadURL(query ? `${origin}/?${query}` : origin);
 }
 
-app.on('second-instance', () => {
-  if (!win) return;
-  if (win.isMinimized()) win.restore();
-  win.focus();
-});
+/** A new window: on `project` (already opened on the server), else showing the project picker. */
+function newWindow(project?: string) {
+  if (!server) return;
+  createWindow(server.url, project ? `project=${encodeURIComponent(project)}` : 'pick=1');
+}
 
-ipcMain.handle('pick-folder', async (_e, defaultPath?: string) => {
-  const r = await dialog.showOpenDialog(win!, {
+// Launching the app again (e.g. the dock's "New Window") opens another window.
+app.on('second-instance', () => newWindow());
+
+ipcMain.handle('new-window', (_e, project?: unknown) => newWindow(typeof project === 'string' ? project : undefined));
+
+ipcMain.handle('pick-folder', async (e, defaultPath?: string) => {
+  const parent = BrowserWindow.fromWebContents(e.sender);
+  const r = await dialog.showOpenDialog(parent!, {
     title: 'Open LaTeX project folder',
     properties: ['openDirectory', 'createDirectory'],
     defaultPath: typeof defaultPath === 'string' ? defaultPath : undefined,
@@ -221,8 +237,10 @@ app.whenReady().then(async () => {
   // The editor needs no camera, location, notifications, ...
   session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(permission === 'clipboard-sanitized-write'));
 
-  if (process.platform === 'darwin') Menu.setApplicationMenu(Menu.buildFromTemplate(macMenu()));
-  else Menu.setApplicationMenu(null);
+  if (process.platform === 'darwin') {
+    Menu.setApplicationMenu(Menu.buildFromTemplate(macMenu()));
+    app.dock?.setMenu(Menu.buildFromTemplate([{ label: 'New Window', click: () => newWindow() }]));
+  } else Menu.setApplicationMenu(null);
   createWindow(origin);
 });
 
@@ -232,6 +250,7 @@ app.on('will-quit', () => { void server?.close(); });
 function macMenu(): Electron.MenuItemConstructorOptions[] {
   return [
     { role: 'appMenu' },
+    { label: 'File', submenu: [{ label: 'New Window', accelerator: 'CmdOrCtrl+Shift+N', click: () => newWindow() }, { type: 'separator' }, { role: 'close' }] },
     { role: 'editMenu' },
     {
       label: 'View',
