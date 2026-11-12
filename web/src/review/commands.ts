@@ -12,7 +12,7 @@ export type CommentPrefs = {
   macro: string;
 };
 
-let prefs: CommentPrefs = { style: 'note', initials: '', macro: 'note' };
+let prefs: CommentPrefs = { style: 'note', initials: '', macro: 'revnote' };
 let onPrefsChange: (p: CommentPrefs) => void = () => {};
 
 export function setCommentPrefs(p: CommentPrefs, onChange?: (p: CommentPrefs) => void) {
@@ -38,7 +38,7 @@ function askInitials(): Promise<string | null> {
   d.innerHTML = `
     <div class="pd-header"><h2 id="initials-dialog-title">Your initials</h2></div>
     <form class="pd-section" method="dialog">
-      <p class="pd-note">Notes are signed with them, e.g. \\note{XL}{…}. You can change them later in the review panel.</p>
+      <p class="pd-note">Notes are signed with them, e.g. \\${prefs.macro}{XL}{…}. You can change them later in the review panel.</p>
       <div class="pd-path">
         <input name="initials" type="text" placeholder="XL" spellcheck="false" autocomplete="off" aria-label="Initials" />
       </div>
@@ -62,7 +62,7 @@ function askInitials(): Promise<string | null> {
 
 /**
  * Add a comment at the cursor, with the cursor left inside it ready to type:
- * - note style: \note{XL}{…}, after the selection if there is one (the text stays as it is);
+ * - note style: \note{XL}{…}, or \note[selection]{XL}{…} around a selection (the text stays in the paper);
  * - changes style: \highlight[comment={…}]{selection}, or \comment{…} without a selection.
  */
 export function addComment(view: EditorView): boolean {
@@ -80,12 +80,16 @@ export function addComment(view: EditorView): boolean {
       });
       return true;
     }
-    const why = unsafeAt(state, r.to);
+    // With a selection, the note says what it's about: \note[selected text]{XL}{…}. The text stays
+    // in the paper (the macro prints it); `]` inside it needs braces around the whole argument.
+    const why = r.empty ? unsafeAt(state, r.to) : unsafeRange(state, r.from, r.to);
     if (why) return fail(why);
-    const prefix = `\\${prefs.macro}{${prefs.initials}}{`;
+    const selected = state.sliceDoc(r.from, r.to);
+    const quote = r.empty ? '' : `[${selected.includes(']') ? `{${selected}}` : selected}]`;
+    const prefix = `\\${prefs.macro}${quote}{${prefs.initials}}{`;
     view.dispatch({
-      changes: { from: r.to, insert: `${prefix}}` },
-      selection: EditorSelection.cursor(r.to + prefix.length),
+      changes: { from: r.from, to: r.to, insert: `${prefix}}` },
+      selection: EditorSelection.cursor(r.from + prefix.length),
       annotations: reviewAction.of(true),
       userEvent: 'review.comment',
       scrollIntoView: true,

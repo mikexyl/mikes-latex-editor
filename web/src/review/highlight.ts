@@ -21,6 +21,9 @@ function build(state: EditorState): DecorationSet {
       mark(it.args[1], 'rv-deleted', `Replaced${who}`);
     } else if (it.kind === 'highlight') mark(it.args[0], 'rv-highlight', it.note);
     else if (it.kind === 'note') {
+      if (it.quote && it.quote.to > it.quote.from) {
+        marks.push(Decoration.mark({ class: 'rv-note-quote', attributes: { title: `Note${who}: ${it.note}` } }).range(it.quote.from, it.quote.to));
+      }
       if (it.args.length === 2) mark(it.args[0], 'rv-note-author');
       mark(it.args[it.args.length - 1], 'rv-note-text', it.author ? `Note by ${it.author}` : 'Note');
     } else mark(it.args[0], 'rv-comment-text');

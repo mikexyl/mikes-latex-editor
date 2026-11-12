@@ -47,17 +47,26 @@ export function compileFile(
 // compile without that package and without editing the preamble. They're injected before the
 // document is read and only take effect if nothing else defined these commands by
 // \begin{document}; a document that loads `changes` gets the real package. The PDF shows the
-// proposed text: additions in blue, deletions and comments hidden. \note{XL}{text} (the editor's
-// default note macro) prints as a red [XL: text], unless the document defines its own \note.
-const REVIEW_FALLBACKS = String.raw`\AtBeginDocument{%
+// proposed text: additions in blue, deletions and comments hidden. Note macros (the project's,
+// \revnote by default, and \note from earlier versions) print \revnote{XL}{text} as a red
+// [XL: text], unless the document or a package defines them; \revnote[paper text]{XL}{text}, a note
+// about a selection, prints the paper text as usual first.
+const noteFallback = (name: string) =>
+  `  \\providecommand\\${name}[3][]{#1\\ifdefined\\textcolor\\textcolor{red}{[#2: #3]}\\else[#2: #3]\\fi}%\n`;
+const reviewFallbacks = (note: string) => String.raw`\AtBeginDocument{%
   \providecommand\added[2][]{\ifdefined\textcolor\textcolor{blue}{#2}\else #2\fi}%
   \providecommand\deleted[2][]{}%
   \providecommand\replaced[3][]{\ifdefined\textcolor\textcolor{blue}{#2}\else #2\fi}%
   \providecommand\highlight[2][]{#2}%
   \providecommand\comment[2][]{}%
-  \providecommand\note[2]{\ifdefined\textcolor\textcolor{red}{[#1: #2]}\else[#1: #2]\fi}%
-}
+` + [...new Set([note, 'note'])].map(noteFallback).join('') + `}
 `;
+
+/** The note macro (without backslash) of the open project, as the editor is configured. */
+let noteMacro = 'revnote';
+export function setNoteMacro(name: unknown) {
+  if (typeof name === 'string' && /^[A-Za-z]+$/.test(name)) noteMacro = name;
+}
 const FALLBACK_FILE = 'latex-editor-review.tex';
 
 async function runLatexmk(root: string, main: string, outDir: string, env: NodeJS.ProcessEnv, cwdDir: string): Promise<CompileResult> {
@@ -65,7 +74,7 @@ async function runLatexmk(root: string, main: string, outDir: string, env: NodeJ
   const cwd = path.join(root, cwdDir);
   const outAbs = path.join(root, outDir);
   await fs.mkdir(outAbs, { recursive: true });
-  await fs.writeFile(path.join(root, BUILD_DIR, FALLBACK_FILE), REVIEW_FALLBACKS);
+  await fs.writeFile(path.join(root, BUILD_DIR, FALLBACK_FILE), reviewFallbacks(noteMacro));
   const jobname = path.basename(main).replace(/\.tex$/, '');
   // Paths given to TeX are relative to cwd (TeX doesn't cope with spaces in paths).
   const rel = (p: string) => path.relative(cwd, p).split(path.sep).join('/') || '.';

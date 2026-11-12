@@ -1,8 +1,10 @@
 // Review markup in the source, using the `changes` package syntax so files stay compatible:
 //   \added[id=..]{new}   \deleted{old}   \replaced{new}{old}
 //   \highlight[comment={note}]{text}   \comment{note}
-// plus your own note macro, by default \note{author}{text} (e.g. defined as
-// \newcommand{\note}[2]{\textcolor{red}{[#1: #2]}}), which also prints in the PDF.
+// plus note macros: new notes use the project's, by default \revnote{author}{text} (earlier
+// versions' \note{author}{text} is still read), or \revnote[paper text]{author}{text}
+// for a note about a piece of the paper (e.g. defined as
+// \newcommand{\revnote}[3][]{#1\textcolor{red}{[#2: #3]}}), which also prints in the PDF.
 import { Annotation, Facet, type EditorState, type TransactionSpec } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
@@ -10,7 +12,9 @@ import type { SyntaxNode } from '@lezer/common';
 export type ReviewKind = 'added' | 'deleted' | 'replaced' | 'highlight' | 'comment' | 'note';
 
 /** Name of the note macro (without backslash). Configured per project. */
-export const noteMacroFacet = Facet.define<string, string>({ combine: (v) => v[0] ?? 'note' });
+export const noteMacroFacet = Facet.define<string, string>({ combine: (v) => v[0] ?? 'revnote' });
+/** Earlier versions' note macro: still read as a note, never inserted any more. */
+export const LEGACY_NOTE_MACRO = 'note';
 export const REVIEW_KINDS = new Set<string>(['added', 'deleted', 'replaced', 'highlight', 'comment']);
 
 /** A brace argument: `open` is the position of `{`, `close` the position of `}`. */
@@ -24,6 +28,7 @@ export type ReviewItem = {
   opt: { from: number; to: number } | null; // [..] optional argument, if any
   author: string;
   note: string; // comment text (\comment content, or comment= option)
+  quote?: { from: number; to: number }; // note: the paper text it's about, \note[this]{..}{..}
 };
 
 /** Marks transactions made by review actions (accept/reject/comment), which are never tracked. */
@@ -43,7 +48,7 @@ export function itemFromNode(state: EditorState, node: SyntaxNode): ReviewItem |
   const ctrl = node.firstChild;
   if (!ctrl || ctrl.name !== 'CtrlSeq') return null;
   const name = state.sliceDoc(ctrl.from + 1, ctrl.to);
-  const isNote = name === state.facet(noteMacroFacet);
+  const isNote = name === state.facet(noteMacroFacet) || name === LEGACY_NOTE_MACRO;
   if (!isNote && !REVIEW_KINDS.has(name)) return null;
   const kind = isNote ? 'note' : name;
   const args: Arg[] = [];
@@ -58,8 +63,17 @@ export function itemFromNode(state: EditorState, node: SyntaxNode): ReviewItem |
   const opt = optNode ? { from: optNode.from, to: optNode.to } : null;
   const { author, note } = parseOptions(opt ? state.sliceDoc(opt.from + 1, opt.to - 1) : '');
   if (kind === 'note') {
+    // \note[text]{..}{..}: the text the note is about; \note[{a]b}] protects a `]` in it.
+    let quote: { from: number; to: number } | undefined;
+    if (opt && args.length === 2) { // (with one argument, [..] holds options: \note[id=XL]{text})
+      quote = { from: opt.from + 1, to: opt.to - 1 };
+      if (state.sliceDoc(quote.from, quote.from + 1) === '{' && state.sliceDoc(quote.to - 1, quote.to) === '}') {
+        quote = { from: quote.from + 1, to: quote.to - 1 };
+      }
+    }
     return {
       kind: 'note',
+      quote,
       from: node.from,
       to: args[args.length - 1].close + 1,
       args,
@@ -109,7 +123,7 @@ export function resolvedText(state: EditorState, it: ReviewItem, accept: boolean
     case 'replaced': return content(state, it.args[accept ? 0 : 1]);
     case 'highlight': return content(state, it.args[0]);
     case 'comment': return '';
-    case 'note': return '';
+    case 'note': return it.quote ? state.sliceDoc(it.quote.from, it.quote.to) : '';
   }
 }
 
@@ -150,7 +164,7 @@ export function itemSummary(state: EditorState, it: ReviewItem): { text: string;
   };
   if (it.kind === 'replaced') return { text: clip(content(state, it.args[0])), old: clip(content(state, it.args[1])) };
   if (it.kind === 'highlight') return { text: clip(it.note), old: clip(content(state, it.args[0])) };
-  if (it.kind === 'note') return { text: clip(it.note) };
+  if (it.kind === 'note') return { text: clip(it.note), old: it.quote ? clip(state.sliceDoc(it.quote.from, it.quote.to)) : undefined };
   return { text: clip(content(state, it.args[0])) };
 }
 

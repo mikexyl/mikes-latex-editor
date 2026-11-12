@@ -7,7 +7,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
-import { compile, BUILD_DIR, pdfPathFor } from './compile.ts';
+import { compile, setNoteMacro, BUILD_DIR, pdfPathFor } from './compile.ts';
 import { synctexForward, synctexBackward, gitLog, gitShow, buildDiff, diffPdfPath } from './tools.ts';
 import { addRecent, removeRecent, listRecent, listFolder, checkProjectDir } from './projects.ts';
 import { texRoutes } from './tex-routes.ts';
@@ -200,6 +200,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   app.post('/api/compile', wrap(async (req, res) => {
     const main = req.body?.main;
     resolveInRoot(main);
+    setNoteMacro(req.body?.noteMacro); // so the PDF can print the editor's notes (see compile.ts)
     res.json(await compile(root, main));
   }));
 

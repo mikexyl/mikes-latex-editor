@@ -629,13 +629,18 @@ function build(state: EditorState, tree: Tree): Built {
             atomic.push(Decoration.widget({ widget: new CommentWidget(review.note, review.author), side: 1 }).range(review.to));
           } else if (review.kind === 'comment' && !editing) {
             atomic.push(Decoration.replace({ widget: new CommentWidget(review.note, review.author) }).range(review.from, review.to));
+          } else if (review.kind === 'note' && review.quote && !editing) {
+            // \note[text]{XL}{..}: the text reads on as part of the paper, the note follows it.
+            hide(review.from, review.quote.from);
+            hide(review.quote.to, review.to);
+            atomic.push(Decoration.widget({ widget: new CommentWidget(review.note, review.author, 'note'), side: 1 }).range(review.to));
           } else if (review.kind === 'note' && !editing) {
             atomic.push(Decoration.replace({ widget: new CommentWidget(review.note, review.author, 'note') }).range(review.from, review.to));
           }
           if (editing) {
             atomic.push(Decoration.widget({ widget: new ReviewActionsWidget(review.from, review.kind), side: 2 }).range(review.to));
           }
-          return (review.kind === 'comment' || review.kind === 'note') && !editing ? false : undefined;
+          return (review.kind === 'comment' || (review.kind === 'note' && !review.quote)) && !editing ? false : undefined;
         }
         const ctrl = node.firstChild;
         if (!ctrl) return;

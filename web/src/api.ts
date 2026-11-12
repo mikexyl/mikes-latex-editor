@@ -69,11 +69,11 @@ export const api = {
     return json(res);
   },
 
-  compile: (main: string) =>
+  compile: (main: string, noteMacro?: string) =>
     call('/api/compile', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ main }),
+      body: JSON.stringify({ main, noteMacro }),
     }).then(json<CompileResult>),
 
   pdfUrl: (main: string) => `/api/pdf?main=${q(main)}&t=${Date.now()}`,

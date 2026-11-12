@@ -14,7 +14,7 @@ export class ReviewPanel {
   private timer: number | undefined;
   private content = el('div', 'review-content');
   private settings = el('details', 'review-settings') as HTMLDetailsElement;
-  private prefs: CommentPrefs = { style: 'note', initials: '', macro: 'note' };
+  private prefs: CommentPrefs = { style: 'note', initials: '', macro: 'revnote' };
   onPrefsChange: (p: CommentPrefs) => void = () => {};
 
   constructor(private root: HTMLElement, private view: EditorView, private onCount: (changes: number, comments: number) => void) {
@@ -34,7 +34,7 @@ export class ReviewPanel {
 
   private updateStyleLabel() {
     const opt = this.settings.querySelector('[name=style] option[value=note]');
-    if (opt) opt.textContent = `\\${this.prefs.macro || 'note'}{${this.prefs.initials || 'XL'}}{…}`;
+    if (opt) opt.textContent = `\\${this.prefs.macro || 'revnote'}{${this.prefs.initials || 'XL'}}{…}`;
   }
 
   private buildSettings() {
@@ -46,20 +46,20 @@ export class ReviewPanel {
     };
     const style = document.createElement('select');
     style.name = 'style';
-    style.append(new Option('\\note{XL}{…}', 'note'), new Option('\\comment / \\highlight (changes package)', 'changes'));
+    style.append(new Option('\\revnote{XL}{…}', 'note'), new Option('\\comment / \\highlight (changes package)', 'changes'));
     const initials = document.createElement('input');
     initials.name = 'initials';
     initials.placeholder = 'XL';
     initials.size = 6;
     const macro = document.createElement('input');
     macro.name = 'macro';
-    macro.placeholder = 'note';
+    macro.placeholder = 'revnote';
     macro.size = 10;
     const commit = () => {
       this.prefs = {
         style: style.value as CommentPrefs['style'],
         initials: initials.value.trim(),
-        macro: macro.value.trim().replace(/^\\/, '') || 'note',
+        macro: macro.value.trim().replace(/^\\/, '') || 'revnote',
       };
       this.updateStyleLabel();
       this.onPrefsChange(this.prefs);
@@ -67,7 +67,7 @@ export class ReviewPanel {
     style.onchange = commit;
     initials.onchange = commit;
     macro.onchange = commit;
-    const hint = el('p', 'review-hint', 'Notes print in the PDF through your own macro, e.g. \\newcommand{\\note}[2]{\\textcolor{red}{[#1: #2]}}. If the paper doesn\'t define \\note, that definition is used when compiling.');
+    const hint = el('p', 'review-hint', 'Notes print in the PDF through the note macro, e.g. \\newcommand{\\revnote}[3][]{#1\\textcolor{red}{[#2: #3]}}, where the optional argument is the paper text a note is about (it prints as usual). If the paper doesn\'t define the macro, that definition is used when compiling. The default name, \\revnote, avoids \\note, which beamer and other packages define; notes written as \\note{..}{..} are still read.');
     this.settings.append(summary, field('Comment button inserts', style), field('Your initials', initials), field('Note macro', macro), hint);
   }
 
@@ -121,6 +121,7 @@ export class ReviewPanel {
       body.append(el('div', 'review-note', text || '(empty comment)'), el('div', 'review-quote', old ?? ''));
     } else if (it.kind === 'comment' || it.kind === 'note') {
       body.append(el('div', 'review-note', text || '(empty comment)'));
+      if (old) body.append(el('div', 'review-quote', old));
     } else {
       body.append(el(it.kind === 'added' ? 'ins' : 'del', it.kind === 'added' ? 'rv-added' : 'rv-deleted', text || '∅'));
     }
@@ -136,7 +137,7 @@ export class ReviewPanel {
       };
       return b;
     };
-    if (isCommentKind(it.kind)) buttons.append(button('✓ Resolve', it.kind === 'highlight' ? 'Remove the comment, keep the text' : 'Delete the note', true));
+    if (isCommentKind(it.kind)) buttons.append(button('✓ Resolve', it.kind === 'highlight' ? 'Remove the comment, keep the text' : it.kind === 'note' && it.quote ? 'Remove the note, keep the text' : 'Delete the note', true));
     else buttons.append(button('✓ Accept', 'Accept change', true), button('✗ Reject', 'Reject change', false));
     li.append(meta, body, buttons);
     li.onclick = () => {

@@ -173,12 +173,17 @@ Review markup is stored in the `.tex` source using the
   Consecutive edits merge; editing your own added text is a plain edit. Edits that would break
   the LaTeX (inside math, command names, labels/citations, the preamble, across braces) are
   refused with a message instead.
-- **Notes** (⌘⌥M / Ctrl+Alt+M, or the Comment button): inserts your own note macro,
-  `\note{XL}{…}` by default, with your initials and the cursor in the note text. Notes render as
-  red bubbles in visual mode, appear in the review panel (Resolve deletes them), and print in the
-  PDF through your macro, e.g. `\newcommand{\note}[2]{\textcolor{red}{[#1: #2]}}`; if the paper
-  doesn't define `\note`, that definition is used when compiling. Initials, the macro name (one-
-  or two-argument) and the comment style are under *Comment settings* in the review panel.
+- **Notes** (⌘⌥M / Ctrl+Alt+M, or the Comment button): inserts the note macro,
+  `\revnote{XL}{…}` by default, with your initials and the cursor in the note text. On a
+  selection it records what the note is about: `\revnote[selected text]{XL}{…}`, where the
+  selected text stays in the paper and is highlighted. Notes render as red bubbles in visual mode,
+  appear in the review panel with the text they're about (Resolve deletes the note and keeps that
+  text), and print in the PDF through the macro, e.g.
+  `\newcommand{\revnote}[3][]{#1\textcolor{red}{[#2: #3]}}`; if the paper doesn't define it, that
+  definition is used when compiling. The default name avoids `\note`, which beamer and other
+  packages define. Notes written as `\note{…}{…}` by earlier versions still work everywhere (editor,
+  review panel, PDF); new notes use `\revnote`. Initials, the macro name and
+  the comment style are under *Comment settings* in the review panel.
 - **Comment** in `changes` style (pick it in *Comment settings*): on a selection adds
   `\highlight[comment={…}]{…}`, otherwise `\comment{…}`.
 - **Selection toolbar:** select text and a small toolbar appears above it: *Comment* (as above),

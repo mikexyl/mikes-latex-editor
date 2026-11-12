@@ -98,6 +98,17 @@ s = mk('A \\xl{one-arg note} B', undefined, 'xl');
 notes = findReviewItems(s);
 check('custom one-arg macro', notes.map((i) => `${i.kind}:${i.author}:${i.note}`).join(','), 'note::one-arg note');
 s = mk('A \\note{XL}{x} B', undefined, 'xl');
+check('earlier versions\' \\note is still a note', String(findReviewItems(s).length), '1');
+s = mk('A \\foo{XL}{x} B', undefined, 'xl');
 check('other macro name is not a note', String(findReviewItems(s).length), '0');
+// \revnote[paper text]{author}{note}: a note about a piece of the paper
+s = mk('We use \\revnote[Adam here]{XL}{cite it}.', undefined, 'revnote');
+notes = findReviewItems(s);
+check('quoted note found', notes.map((i) => `${i.kind}:${i.author}:${i.note}:${i.quote ? s.sliceDoc(i.quote.from, i.quote.to) : ''}`).join(','), 'note:XL:cite it:Adam here');
+check('quoted note resolved keeps the text', body(s.update(resolveSpec(s, notes, true)).state), 'We use Adam here.');
+s = mk('We use \\revnote[{a]b}]{XL}{x}.', undefined, 'revnote');
+check('quoted note with ] in braces', findReviewItems(s).map((i) => i.quote ? s.sliceDoc(i.quote.from, i.quote.to) : '').join(','), 'a]b');
+s = mk('\\note[id=XL]{one-arg}', undefined, 'revnote');
+check('one-arg note keeps [id=..] as its author', findReviewItems(s).map((i) => `${i.author}:${i.note}:${i.quote ? 'q' : ''}`).join(','), 'XL:one-arg:');
 console.log(fail ? `${fail} FAILED` : 'all passed');
 if (fail) process.exit(1);

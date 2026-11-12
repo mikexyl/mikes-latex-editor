@@ -56,7 +56,9 @@ const store = {
 
 let visualMode = store.get('mode') !== 'source';
 let tracking = false; // per project, restored in start()
-let commentPrefs: CommentPrefs = { style: 'note', initials: '', macro: 'note' }; // per project
+// Per project. \revnote, not \note: beamer, seminar and others define \note.
+const DEFAULT_NOTE_MACRO = 'revnote';
+let commentPrefs: CommentPrefs = { style: 'note', initials: '', macro: DEFAULT_NOTE_MACRO };
 const modes = (): Modes => ({ visual: visualMode, tracking, noteMacro: commentPrefs.macro });
 
 const view = new EditorView({ parent: $('editor'), state: createState('', '', extensions, { visual: false, tracking: false, noteMacro: 'note' }) });
@@ -449,7 +451,7 @@ async function saveAllAndCompile() {
       return;
     }
     setStatus('Compiling…');
-    const result = await api.compile(main);
+    const result = await api.compile(main, commentPrefs.macro);
     renderProblems(result);
     // While comparing, show the marked-up diff PDF when latexdiff is available.
     const showedDiff = compareRev && result.pdf ? await showDiffPdf() : false;
@@ -1002,10 +1004,13 @@ async function start() {
   $<HTMLButtonElement>('compile-btn').disabled = !main;
   tracking = store.get(`track:${project.root}`) === '1';
   try { collapsed = new Set(JSON.parse(store.get(`collapsed:${project.root}`) ?? '[]')); } catch { collapsed = new Set(); }
-  try {
-    const saved = JSON.parse(store.get(`comment-prefs:${project.root}`) ?? 'null');
-    if (saved) commentPrefs = { ...commentPrefs, ...saved };
-  } catch { /* ignore bad saved prefs */ }
+  // Initials follow you between projects; the rest is the project's own.
+  let saved: Partial<CommentPrefs> | null = null;
+  try { saved = JSON.parse(store.get(`comment-prefs:${project.root}`) ?? 'null'); } catch { /* bad saved prefs */ }
+  const base: CommentPrefs = { style: 'note', initials: commentPrefs.initials, macro: DEFAULT_NOTE_MACRO };
+  commentPrefs = saved ? { ...base, ...saved } : base;
+  // New notes use \revnote from now on; existing \note{..}{..} notes are still read (model.ts).
+  if (commentPrefs.macro === 'note') commentPrefs = { ...commentPrefs, macro: DEFAULT_NOTE_MACRO };
   applyCommentPrefs(commentPrefs);
 
   renderTree();
