@@ -1,6 +1,7 @@
 // The desktop app: runs the editor's back end inside this process and shows the UI in a window.
 // Built with esbuild into build/electron/main.mjs (npm run electron:build).
 import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from 'electron';
+import { execFile } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -138,6 +139,9 @@ Categories=Office;
 StartupWMClass=mikes
 StartupNotify=true
 `;
+    // The AppImage file itself: file managers don't read icons from inside executables, but GNOME's
+    // (Files, the desktop) show a file's custom-icon metadata. Set on every start, wherever it was moved.
+    execFile('gio', ['set', appImage, 'metadata::custom-icon', `file://${iconFile}`], () => { /* no gio: generic icon */ });
     if (fs.existsSync(desktopFile) && fs.readFileSync(desktopFile, 'utf8') === entry) return;
     fs.mkdirSync(path.dirname(desktopFile), { recursive: true });
     fs.writeFileSync(desktopFile, entry, { mode: 0o755 });
