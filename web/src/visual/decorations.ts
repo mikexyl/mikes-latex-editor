@@ -20,7 +20,7 @@ export const refreshVisual = StateEffect.define<null>();
 
 /** Environments whose \begin/\end lines become a label (or disappear, for lists). */
 const ENV_LABELS: Record<string, string> = {
-  abstract: 'Abstract', figure: 'Figure', table: 'Table', algorithm: 'Algorithm',
+  abstract: 'Abstract', figure: 'Figure', teaserfigure: 'Figure', table: 'Table', algorithm: 'Algorithm',
   theorem: 'Theorem', lemma: 'Lemma', corollary: 'Corollary', proposition: 'Proposition',
   definition: 'Definition', remark: 'Remark', example: 'Example', proof: 'Proof', claim: 'Claim',
   assumption: 'Assumption', conjecture: 'Conjecture', note: 'Note',
@@ -30,7 +30,7 @@ const ENV_LABELS: Record<string, string> = {
   IEEEbiographynophoto: 'Biography', thebibliography: 'References',
 };
 const LINE_CLASS_ENVS = new Set([
-  'abstract', 'figure', 'table', 'algorithm', 'quote', 'quotation', 'center', 'verbatim', 'lstlisting',
+  'abstract', 'figure', 'teaserfigure', 'table', 'algorithm', 'quote', 'quotation', 'center', 'verbatim', 'lstlisting',
   'theorem', 'lemma', 'corollary', 'proposition', 'definition', 'remark', 'example', 'proof', 'claim',
   'assumption', 'conjecture', 'note', 'IEEEkeywords', 'IEEEproof', 'thebibliography', 'algorithmic',
   'IEEEbiography', 'IEEEbiographynophoto',
@@ -60,7 +60,17 @@ const ALGO_CLOSE = /^\\(END[A-Z]*|UNTIL|End[A-Za-z]*|Until)\b/;
 const ALGO_MID = /^\\(ELSE|ELSIF|Else|ElsIf)\b/;
 
 /** Commands with an argument that only affect spacing/layout: hidden in visual mode. */
-const HIDE_WITH_ARG: Record<string, string> = { vspace: '', 'vspace*': '', hspace: ' ', 'hspace*': ' ', IEEEauthorrefmark: '' };
+const HIDE_WITH_ARG: Record<string, string> = {
+  vspace: '', 'vspace*': '', hspace: ' ', 'hspace*': ' ', IEEEauthorrefmark: '',
+  // Running heads, page footers and column balancing: not part of the text being reviewed.
+  markboth: '', IEEEpubid: '', IEEEtriggeratref: '', IEEEtriggercmd: '',
+};
+/**
+ * Commands whose argument is content the class prints with the title block, e.g. IEEEtran's
+ * \IEEEaftertitletext{teaser figure} or the Computer Society's abstract and index terms. They come
+ * before \maketitle in the source; visual mode shows their content (editable) below the title.
+ */
+const TITLE_CONTENT = new Set(['IEEEaftertitletext', 'IEEEtitleabstractindextext', 'IEEEspecialpapernotice']);
 const THEOREM_LIKE = new Set(['theorem', 'lemma', 'corollary', 'proposition', 'conjecture', 'claim']);
 
 const FORMATTING: Record<string, string> = {
@@ -85,6 +95,7 @@ const SYMBOLS: Record<string, string> = {
   '\\hfill': ' ', '\\vfill': '', '\\noindent': '', '\\newpage': '', '\\clearpage': '',
   '\\relax': '', '\\smallskip': '', '\\medskip': '', '\\bigskip': '', '\\protect': '',
   '\\IEEEpeerreviewmaketitle': '', '\\IEEEoverridecommandlockouts': '', '\\par': '',
+  '\\IEEEdisplaynontitleabstractindextext': '', '\\IEEEpubidadjcol': '',
 };
 const BULLETS = ['•', '◦', '▪', '•'];
 
@@ -301,8 +312,12 @@ function build(state: EditorState, tree: Tree): Built {
     }
   };
   /** Replace a whole-line construct (\begin{..} line etc.) with a block widget unless the cursor is on it. */
+  const unwrappedClose = new Set<number>(); // closing braces hidden by unwrapArg
   const replaceLines = (node: SyntaxNode, widget: EnvLineWidget | TitleWidget) => {
-    if (!aloneOnLines(state, node) || touchesLines(node.from, node.to)) return false;
+    // A hidden closing brace may follow, as in `\end{IEEEkeywords}}`.
+    const rest = state.sliceDoc(node.to, doc.lineAt(node.to).to);
+    const closer = /^\s*\}\s*$/.test(rest) && unwrappedClose.has(node.to + rest.indexOf('}'));
+    if ((!aloneOnLines(state, node) && !(closer && !state.sliceDoc(doc.lineAt(node.from).from, node.from).trim())) || touchesLines(node.from, node.to)) return false;
     atomic.push(Decoration.replace({ widget, block: true }).range(doc.lineAt(node.from).from, doc.lineAt(node.to).to));
     return true;
   };
@@ -322,6 +337,27 @@ function build(state: EditorState, tree: Tree): Built {
     return t.replace(/^\s*[{[]/, '').replace(/[}\]]\s*$/, '');
   };
   const macros = macrosFor(doc, () => doc.toString());
+
+  /**
+   * Hide `\cmd{` and `}` around an argument whose content shows as part of the document. On lines
+   * of their own, those lines disappear (unless the cursor is on them).
+   */
+  const unwrapArg = (node: SyntaxNode, arg: SyntaxNode) => {
+    const open = arg.getChild('OpenBrace');
+    const close = arg.getChild('CloseBrace');
+    if (!open || !close) return;
+    const blank = (from: number, to: number) => !state.sliceDoc(from, to).replace(/(^|[^\\])%.*$/, '$1').trim();
+    const part = (from: number, to: number) => {
+      const a = doc.lineAt(from), b = doc.lineAt(to);
+      if (a.number !== b.number) return hide(from, to);
+      if (blank(a.from, from) && blank(to, a.to)) {
+        if (!touchesLines(from, to)) atomic.push(Decoration.replace({ widget: new EnvLineWidget('hidden'), block: true }).range(a.from, a.to));
+      } else if (!touches(from, to)) hide(from, to);
+    };
+    unwrappedClose.add(close.from);
+    part(node.from, open.to);
+    part(close.from, close.to);
+  };
 
   /** Like replaceLines for a \begin line, but also allows a trailing \label{..} (shown as a tag). */
   const replaceBeginLine = (begin: SyntaxNode, widget: (tag: string) => EnvLineWidget) => {
@@ -368,6 +404,7 @@ function build(state: EditorState, tree: Tree): Built {
 
   let preamble: { to: number } | null = null;
   let maketitleSeen = false;
+  let titleContentAt = -1; // start of the first title-block content before \maketitle (TITLE_CONTENT, teaserfigure)
   const titleParts = { title: '', authors: [] as TitleAuthor[], date: '' };
   let skipUntil = -1; // nodes inside a range already replaced (e.g. \hskip glue ... \relax)
   let algoDepth = 0; // inside algorithmic environments
@@ -397,15 +434,24 @@ function build(state: EditorState, tree: Tree): Built {
       }
       if (name === 'Maketitle') {
         // Like Overleaf: \title, \author etc. placed after \begin{document} (as IEEE templates do)
-        // join the collapsed preamble, since the title block shows them.
+        // join the collapsed preamble, since the title block shows them. Content the class prints
+        // with the title (\IEEEaftertitletext, a teaser figure) stays out of it, below the title.
         const pre = preamble as { to: number } | null;
+        const extra = !maketitleSeen && pre && titleContentAt > pre.to ? titleContentAt : -1;
         if (pre && !maketitleSeen && node.from > pre.to) {
-          const lineBefore = doc.lineAt(node.from).number - 1;
+          const lineBefore = doc.lineAt(extra >= 0 ? extra : node.from).number - 1;
           if (lineBefore >= 1) pre.to = Math.max(pre.to, doc.line(lineBefore).to);
         }
         maketitleSeen = true;
-        replaceLines(node, new TitleWidget(titleParts.title, titleParts.authors, titleParts.date));
+        const title = new TitleWidget(titleParts.title, titleParts.authors, titleParts.date);
+        if (extra >= 0) {
+          atomic.push(Decoration.widget({ widget: title, block: true, side: -1 }).range(doc.lineAt(extra).from));
+          replaceLines(node, new EnvLineWidget('hidden'));
+        } else replaceLines(node, title);
         return false;
+      }
+      if (!maketitleSeen && titleContentAt < 0 && name.endsWith('Environment') && envNameOf(node, state) === 'teaserfigure') {
+        titleContentAt = node.from;
       }
       if (name === 'Comment') {
         if (node.to > node.from) marks.push(Decoration.mark({ class: 'vc-comment' }).range(node.from, node.to));
@@ -708,6 +754,11 @@ function build(state: EditorState, tree: Tree): Built {
         if (cmd === 'appendices' && !args.length) {
           if (aloneOnLines(state, node)) replaceLines(node, new EnvLineWidget('begin', 'Appendices'));
           return false;
+        }
+        if (TITLE_CONTENT.has(cmd) && args.length === 1) {
+          if (!maketitleSeen && titleContentAt < 0) titleContentAt = node.from;
+          unwrapArg(node, args[0]);
+          return; // the content renders as usual
         }
         if (cmd in HIDE_WITH_ARG && args.length) {
           if (!touches(node.from, node.to)) atomic.push(Decoration.replace({ widget: new TextWidget(HIDE_WITH_ARG[cmd]) }).range(node.from, node.to));
