@@ -374,7 +374,29 @@ ins.rv-added, del.rv-deleted { padding: 0 2px; border-radius: 2px; }
 .editor.tracking { box-shadow: inset 3px 0 0 var(--track); }
 
 /* Editor + review panel */
-.editor-row { flex: 1; min-height: 0; display: flex; }
+.editor-row { flex: 1; min-height: 0; display: flex; position: relative; }
+
+/* ---------- figure viewer (viewer.ts): over the editor, which stays as it was ---------- */
+.file-viewer { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; background: var(--panel); }
+.file-viewer[hidden] { display: none; }
+.fv-toolbar { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-bottom: 1px solid var(--border); background: var(--surface); color: var(--muted); }
+.fv-toolbar button:not(.link) { padding: 1px 8px; min-width: 28px; }
+.fv-toolbar .spacer { flex: 1; }
+.fv-info { margin-left: 6px; font-variant-numeric: tabular-nums; }
+.fv-body { flex: 1; min-height: 0; overflow: auto; display: flex; background: var(--pdf-bg); }
+.fv-body .fv-pdf { flex: 1; }
+.fv-image { margin: auto; padding: 16px; min-width: 0; }
+.fv-image img {
+  display: block; max-width: 100%; max-height: calc(100vh - 160px); height: auto;
+  /* a checkerboard behind transparent parts */
+  background: repeating-conic-gradient(#e6e6e6 0 25%, #ffffff 0 50%) 0 0 / 16px 16px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
+}
+.fv-image img.zoomed { max-width: none; max-height: none; }
+.fv-image.fv-vector { width: 100%; }
+.fv-vector img { width: 100%; object-fit: contain; }
+.editor-pane.viewing #track-toggle, .editor-pane.viewing #comment-btn,
+.editor-pane.viewing #review-toggle, .editor-pane.viewing #mode-toggle { display: none; }
 .editor-row .editor { flex: 1; min-width: 0; }
 .review {
   width: 300px;

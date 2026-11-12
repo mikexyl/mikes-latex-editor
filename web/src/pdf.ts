@@ -59,6 +59,7 @@ export class PdfViewer {
   zoomOut() { this.setZoom(this.zoom / 1.15); }
   fit() { this.setZoom(1); }
   get zoomLevel() { return this.zoom; }
+  get pageCount() { return this.doc?.numPages ?? 0; }
 
   /** Renders into a detached element, then swaps it in, so recompiles don't flicker. */
   async render() {

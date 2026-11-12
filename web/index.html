@@ -164,7 +164,7 @@
     <main class="layout" id="layout">
       <nav class="files" id="files" aria-label="Project files"></nav>
 
-      <section class="editor-pane">
+      <section class="editor-pane" id="editor-pane">
         <div class="pane-header">
           <button class="back-to-main" id="back-to-main" hidden></button>
           <span id="current-file">No file open</span>
@@ -189,6 +189,17 @@
         <div class="editor-row">
           <div class="editor" id="editor"></div>
           <aside class="review" id="review" hidden aria-label="Changes and comments"></aside>
+          <div class="file-viewer" id="file-viewer" hidden>
+            <div class="fv-toolbar">
+              <button id="fv-out" title="Zoom out" aria-label="Zoom out">−</button>
+              <button id="fv-fit" title="Fit to the pane">Fit</button>
+              <button id="fv-in" title="Zoom in" aria-label="Zoom in">+</button>
+              <span class="fv-info" id="fv-info"></span>
+              <span class="spacer"></span>
+              <button class="link" id="fv-close" title="Back to the editor (Esc)">✕ Close</button>
+            </div>
+            <div class="fv-body" id="fv-body"></div>
+          </div>
         </div>
         <div class="problems" id="problems" hidden>
           <div class="pane-header">

@@ -13,6 +13,7 @@ import { setIncludeHost, includeHeights } from './visual/includes.ts';
 import { collectMacros, setProjectMacros } from './visual/math.ts';
 import { refreshVisual } from './visual/decorations.ts';
 import { PdfViewer } from './pdf.ts';
+import { FileViewer, VIEWABLE } from './viewer.ts';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -80,6 +81,26 @@ $('editor').addEventListener('vc-open-file', (e) => {
 });
 view.contentDOM.setAttribute('aria-label', 'LaTeX source');
 const pdf = new PdfViewer($('pdf'));
+// Figures (images, PDFs) open in the editor pane, over the editor.
+const viewer = new FileViewer(() => hideViewer());
+function showViewer(path: string) {
+  ensureEditorVisible();
+  void viewer.show(path);
+  $('editor-pane').classList.add('viewing');
+  $('current-file').textContent = path;
+  renderTree();
+}
+function hideViewer() {
+  if (!viewer.path) return;
+  viewer.hide();
+  $('editor-pane').classList.remove('viewing');
+  $('current-file').textContent = current?.path ?? 'No file open';
+  renderTree();
+  (activeEditor()?.v ?? view).focus();
+}
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && viewer.path && !(e.target as HTMLElement).closest('dialog, input, textarea, .settings-popover')) hideViewer();
+});
 pdf.clear('Compile to see the PDF.');
 
 // ---------- files ----------
@@ -132,6 +153,7 @@ async function loadFile(path: string): Promise<OpenFile> {
 }
 
 async function openFile(path: string): Promise<OpenFile> {
+  hideViewer();
   const f = await loadFile(path);
   if (current !== f) {
     if (current) {
@@ -257,6 +279,7 @@ async function reloadFromDisk() {
     renderTree();
   } catch { /* keep the old tree */ }
   void refreshProjectMacros();
+  void viewer.reload(); // a figure being viewed may have been regenerated
   const kept = discard ? 0 : dirty.length;
   setStatus(`${changed ? `Reloaded ${changed} file${changed === 1 ? '' : 's'} from disk.` : 'Up to date with the disk.'}` +
     (kept ? ` Kept unsaved edits in ${kept} file${kept === 1 ? '' : 's'}.` : ''));
@@ -677,13 +700,17 @@ function renderTree() {
       const spacer = document.createElement('span');
       spacer.className = 'caret';
       el.append(spacer, name);
-      if (!TEXT_EXT.test(e.path)) {
+      if (VIEWABLE.test(e.path)) {
+        el.onclick = () => showViewer(e.path);
+        el.title = 'View';
+        if (viewer.path === e.path) el.classList.add('active');
+      } else if (!TEXT_EXT.test(e.path)) {
         el.classList.add('binary');
         el.title = 'Not a text file';
         el.tabIndex = -1;
       } else {
         el.onclick = () => { ensureEditorVisible(); void openFile(e.path); };
-        if (current?.path === e.path) el.classList.add('active');
+        if (!viewer.path && current?.path === e.path) el.classList.add('active');
       }
       return el;
     }),
@@ -704,9 +731,10 @@ function renderDirty() {
       el.append(mark);
     } else if (!dirty && mark) mark.remove();
   }
-  const name = current ? current.path + (isDirty(current) ? ' ●' : '') : 'No file open';
+  const name = viewer.path ?? (current ? current.path + (isDirty(current) ? ' ●' : '') : 'No file open');
   $('current-file').textContent = name;
-  document.title = `${current ? current.path + ' — ' : ''}${project?.name ?? "Mike's"}`;
+  const shown = viewer.path ?? current?.path;
+  document.title = `${shown ? shown + ' — ' : ''}${project?.name ?? "Mike's"}`;
 }
 
 function renderProblems(result: CompileResult) {
