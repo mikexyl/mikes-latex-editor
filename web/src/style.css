@@ -684,6 +684,9 @@ button.problems-summary:hover { text-decoration: none; color: var(--text); }
 /* ---------- file tree show/hide ---------- */
 .sidebar-toggle { display: inline-flex; align-items: center; padding: 3px 5px; color: var(--muted); border-color: transparent; background: none; margin-left: -4px; }
 .sidebar-toggle:hover { color: var(--text); background: var(--hover); }
+.open-folder-btn { display: inline-flex; align-items: center; padding: 3px 5px; color: var(--muted); border-color: transparent; background: none; margin-left: -6px; }
+.open-folder-btn[hidden] { display: none; }
+.open-folder-btn:hover { color: var(--text); background: var(--hover); }
 .sidebar-toggle[aria-pressed="false"] .sidebar-pane { opacity: 0; }
 /* Keep the grid column (width 0) so the other panes keep their places. */
 .layout.files-hidden { --files-w: 0px; }

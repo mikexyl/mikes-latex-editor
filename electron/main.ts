@@ -210,6 +210,12 @@ ipcMain.handle('reveal-path', (_e, p: unknown) => {
   if (typeof p === 'string' && path.isAbsolute(p)) shell.showItemInFolder(p);
 });
 
+// Open a folder (the project's) in Finder / the file manager. Folders only: never runs a file.
+ipcMain.handle('open-folder', async (_e, p: unknown) => {
+  if (typeof p !== 'string' || !path.isAbsolute(p) || !fs.statSync(p, { throwIfNoEntry: false })?.isDirectory()) return 'not a folder';
+  return shell.openPath(p); // '' on success, else the error
+});
+
 app.whenReady().then(async () => {
   registerAppImageLauncher();
   // Under the app's data folder: the writable layer for packages installed from the app.

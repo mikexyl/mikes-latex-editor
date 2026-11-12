@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('desktop', {
   pickFolder: (defaultPath) => ipcRenderer.invoke('pick-folder', defaultPath),
   /** Show a file or folder in Finder / the file manager. */
   revealPath: (p) => ipcRenderer.invoke('reveal-path', p),
+  /** Open a folder in Finder / the file manager; resolves to '' or an error message. */
+  openFolder: (p) => ipcRenderer.invoke('open-folder', p),
   /** Open another editor window, on `project` (opened on the server first) or the project picker. */
   newWindow: (project) => ipcRenderer.invoke('new-window', project),
 });

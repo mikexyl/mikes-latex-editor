@@ -2,6 +2,7 @@ import { EditorView } from '@codemirror/view';
 import type { EditorState, Text, TransactionSpec } from '@codemirror/state';
 import { ensureSyntaxTree } from '@codemirror/language';
 import { initProjectPicker, openProjectPicker } from './projects.ts';
+import { desktop } from './desktop.ts';
 import { initSettings } from './settings.ts';
 import { initTex, installProviding, texStatus } from './tex.ts';
 import { api, setProjectRoot, rememberWindowProject, rememberedWindowProject, ConflictError, type Project, type CompileResult, type Problem } from './api.ts';
@@ -1141,6 +1142,15 @@ async function start() {
   if (params.has('pick')) void openProjectPicker(); // a new window: which project?
   $('project-name').textContent = `${project.name} ▾`;
   $('project-name').title = project.root;
+  if (desktop?.openFolder) {
+    const b = $<HTMLButtonElement>('open-folder-btn');
+    b.hidden = false;
+    b.title = `Open ${project.root} in ${desktop.platform === 'darwin' ? 'Finder' : 'the file manager'}`;
+    b.onclick = async () => {
+      const error = await desktop!.openFolder!(project.root);
+      if (error) setStatus(`Couldn't open the folder: ${error}`, true);
+    };
+  }
 
   const select = $<HTMLSelectElement>('main-select');
   select.replaceChildren(...project.mains.map((m) => new Option(m, m)));
