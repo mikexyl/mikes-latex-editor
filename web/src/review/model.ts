@@ -5,17 +5,20 @@
 // versions' \note{author}{text} is still read), or \revnote[paper text]{author}{text}
 // for a note about a piece of the paper (e.g. defined as
 // \newcommand{\revnote}[3][]{#1\textcolor{red}{[#2: #3]}}), which also prints in the PDF.
+// Outlines, \revoutline{author}{what to write here}, mark text still to be written.
 import { Annotation, Facet, type EditorState, type TransactionSpec } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
 
-export type ReviewKind = 'added' | 'deleted' | 'replaced' | 'highlight' | 'comment' | 'note';
+export type ReviewKind = 'added' | 'deleted' | 'replaced' | 'highlight' | 'comment' | 'note' | 'outline';
 
 /** Name of the note macro (without backslash). Configured per project. */
 export const noteMacroFacet = Facet.define<string, string>({ combine: (v) => v[0] ?? 'revnote' });
 /** Earlier versions' note macro: still read as a note, never inserted any more. */
 export const LEGACY_NOTE_MACRO = 'note';
 export const REVIEW_KINDS = new Set<string>(['added', 'deleted', 'replaced', 'highlight', 'comment']);
+/** Outline macro: what still has to be written at this spot, \revoutline{author}{text}. */
+export const OUTLINE_MACRO = 'revoutline';
 
 /** A brace argument: `open` is the position of `{`, `close` the position of `}`. */
 export type Arg = { open: number; close: number };
@@ -49,8 +52,9 @@ export function itemFromNode(state: EditorState, node: SyntaxNode): ReviewItem |
   if (!ctrl || ctrl.name !== 'CtrlSeq') return null;
   const name = state.sliceDoc(ctrl.from + 1, ctrl.to);
   const isNote = name === state.facet(noteMacroFacet) || name === LEGACY_NOTE_MACRO;
-  if (!isNote && !REVIEW_KINDS.has(name)) return null;
-  const kind = isNote ? 'note' : name;
+  const isOutline = name === OUTLINE_MACRO;
+  if (!isNote && !isOutline && !REVIEW_KINDS.has(name)) return null;
+  const kind = isNote ? 'note' : isOutline ? 'outline' : name;
   const args: Arg[] = [];
   for (const a of node.getChildren('TextArgument')) {
     const open = a.getChild('OpenBrace');
@@ -58,10 +62,22 @@ export function itemFromNode(state: EditorState, node: SyntaxNode): ReviewItem |
     if (!open || !close) return null;
     args.push({ open: open.from, close: close.from });
   }
-  if (kind === 'note' ? args.length < 1 || args.length > 2 : args.length !== (kind === 'replaced' ? 2 : 1)) return null;
+  const noteLike = kind === 'note' || kind === 'outline';
+  if (noteLike ? args.length < 1 || args.length > 2 : args.length !== (kind === 'replaced' ? 2 : 1)) return null;
   const optNode = node.getChild('OptionalArgument');
   const opt = optNode ? { from: optNode.from, to: optNode.to } : null;
   const { author, note } = parseOptions(opt ? state.sliceDoc(opt.from + 1, opt.to - 1) : '');
+  if (kind === 'outline') {
+    return {
+      kind: 'outline',
+      from: node.from,
+      to: args[args.length - 1].close + 1,
+      args,
+      opt,
+      author: args.length === 2 ? content(state, args[0]).trim() : author,
+      note: content(state, args[args.length - 1]).trim(),
+    };
+  }
   if (kind === 'note') {
     // \note[text]{..}{..}: the text the note is about; \note[{a]b}] protects a `]` in it.
     let quote: { from: number; to: number } | undefined;
@@ -124,6 +140,7 @@ export function resolvedText(state: EditorState, it: ReviewItem, accept: boolean
     case 'highlight': return content(state, it.args[0]);
     case 'comment': return '';
     case 'note': return it.quote ? state.sliceDoc(it.quote.from, it.quote.to) : '';
+    case 'outline': return '';
   }
 }
 
@@ -153,7 +170,7 @@ export function resolveSpec(state: EditorState, items: ReviewItem[], accept: boo
 }
 
 export function itemLabel(it: ReviewItem): string {
-  return { added: 'Added', deleted: 'Deleted', replaced: 'Replaced', highlight: 'Comment', comment: 'Comment', note: 'Note' }[it.kind];
+  return { added: 'Added', deleted: 'Deleted', replaced: 'Replaced', highlight: 'Comment', comment: 'Comment', note: 'Note', outline: 'To write' }[it.kind];
 }
 
 /** Short readable text of an item, for the review panel. */
@@ -164,12 +181,15 @@ export function itemSummary(state: EditorState, it: ReviewItem): { text: string;
   };
   if (it.kind === 'replaced') return { text: clip(content(state, it.args[0])), old: clip(content(state, it.args[1])) };
   if (it.kind === 'highlight') return { text: clip(it.note), old: clip(content(state, it.args[0])) };
+  if (it.kind === 'outline') return { text: clip(it.note) };
   if (it.kind === 'note') return { text: clip(it.note), old: it.quote ? clip(state.sliceDoc(it.quote.from, it.quote.to)) : undefined };
   return { text: clip(content(state, it.args[0])) };
 }
 
 /** Comments of any style (resolved, not accepted/rejected). */
 export const isCommentKind = (k: ReviewKind) => k === 'comment' || k === 'highlight' || k === 'note';
+/** Items resolved rather than accepted or rejected: comments and outlines. */
+export const isResolvable = (k: ReviewKind) => isCommentKind(k) || k === 'outline';
 
 /** The files a document \input-s or \include-s, as written (with .tex added), in order. */
 export function findIncludes(state: EditorState): { rel: string; pos: number }[] {

@@ -100,9 +100,9 @@ type Change = { fromA: number; toA: number; fromB: number; text: string };
 type Result = { changes: ChangeSpec[]; cursor: number } | { error: string };
 
 const ownArg = (it: ReviewItem) => (it.kind === 'added' || it.kind === 'replaced' || it.kind === 'comment' ? it.args[0] : null);
-/** All of a note's arguments (author and text) are comment text: edits there aren't tracked. */
+/** All of a note's or outline's arguments (author and text) are comment text: edits there aren't tracked. */
 const inNote = (it: ReviewItem, from: number, to: number) =>
-  it.kind === 'note' && it.args.some((a) => from >= a.open + 1 && to <= a.close);
+  (it.kind === 'note' || it.kind === 'outline') && it.args.some((a) => from >= a.open + 1 && to <= a.close);
 const deletedArg = (it: ReviewItem) => (it.kind === 'deleted' ? it.args[0] : it.kind === 'replaced' ? it.args[1] : null);
 
 function trackOne(state: EditorState, items: ReviewItem[], c: Change, backward: boolean, headB: number, depth = 0): Result {

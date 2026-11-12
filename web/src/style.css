@@ -45,6 +45,10 @@
   --note-text: #a1281e;
   --note-strong: #c0362c;
   --note-strong-text: #ffffff;
+  --outline-bg: #eef3fc;
+  --outline-border: #8fb0e6;
+  --outline-text: #1f4b99;
+  --outline-strong: #2f63c0;
   --primary-bg: #eef2ef;
   --primary-border: #cdd8d1;
   --primary-text: #2c5843;
@@ -125,7 +129,9 @@ button.link:hover { color: var(--text); text-decoration: underline; }
   background: var(--surface);
 }
 .pane-header .spacer { flex: 1; }
-.pane-header button { padding: 1px 8px; }
+.pane-header button { padding: 1px 8px; white-space: nowrap; }
+/* The editor's toolbar wraps onto a second row in a narrow pane rather than squeezing buttons. */
+.editor-pane > .pane-header { flex-wrap: wrap; row-gap: 4px; }
 .pane-header .reload-btn { border-color: transparent; background: none; color: var(--muted); padding: 0 6px; font-size: 15px; line-height: 1.3; }
 .pane-header .reload-btn:hover { color: var(--text); background: var(--hover); }
 
@@ -838,6 +844,10 @@ body.zen .editor-pane { background: var(--panel); }
   --df-del-text: #f5a46a;
   --df-del-line: #d0703a;
   --latex-comment: #75777c;
+  --outline-bg: #1f2a3d;
+  --outline-border: #3d5a8a;
+  --outline-text: #a9c4f2;
+  --outline-strong: #6b9be6;
   --note-bg: #3d2323;
   --note-border: #6e3633;
   --note-text: #f3a49c;
@@ -877,3 +887,21 @@ body.zen .editor-pane { background: var(--panel); }
 .vc-title-extra:hover { background: var(--hover); }
 .vc-title-extra .vc-graphics img { max-width: 100%; }
 .vc-title-caption, .vc-title-text { font-size: 0.85em; text-align: left; margin-top: 6px; }
+
+/* ---------- outline: \revoutline{XL}{what to write here} ---------- */
+.rv-outline {
+  background: var(--outline-bg);
+  border: 1px dashed var(--outline-border);
+  border-radius: 6px;
+  color: var(--outline-text);
+}
+.rv-outline::before { content: none; }
+.rv-outline.rv-block { display: block; margin: 4px 0; padding: 6px 10px; font-size: 13px; }
+.rv-outline-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--outline-strong); margin-right: 6px;
+}
+.rv-outline .rv-comment-author { color: var(--outline-strong); }
+.rv-outline-text { background: var(--outline-bg); color: var(--outline-text); }
+.rv-outline-author { color: var(--outline-strong); font-weight: 700; }
+.review-tag-outline { color: var(--outline-strong); }

@@ -1,6 +1,6 @@
 // Side panel listing the tracked changes and comments in the open file and the files it includes.
 import type { EditorState, TransactionSpec } from '@codemirror/state';
-import { findReviewItems, isCommentKind, itemLabel, itemSummary, resolveSpec, type ReviewItem } from './model.ts';
+import { findReviewItems, isCommentKind, isResolvable, itemLabel, itemSummary, resolveSpec, type ReviewItem } from './model.ts';
 import type { CommentPrefs } from './commands.ts';
 
 const el = (tag: string, cls: string, text?: string) => {
@@ -89,20 +89,24 @@ export class ReviewPanel {
   render() {
     const groups = this.sources().map((src) => ({ src, items: findReviewItems(src.state()) }));
     const all = groups.flatMap((g) => g.items);
-    const changes = all.filter((i) => !isCommentKind(i.kind));
+    const changes = all.filter((i) => !isResolvable(i.kind));
     const comments = all.filter((i) => isCommentKind(i.kind));
-    this.onCount(changes.length, comments.length);
+    const outlines = all.filter((i) => i.kind === 'outline');
+    this.onCount(changes.length, comments.length + outlines.length);
     if (this.root.hidden) return;
 
     const header = el('div', 'review-header');
-    header.append(el('span', 'review-title', `${changes.length} change${changes.length === 1 ? '' : 's'} · ${comments.length} comment${comments.length === 1 ? '' : 's'}`));
+    const count = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
+    const title = [count(changes.length, 'change'), count(comments.length, 'comment')];
+    if (outlines.length) title.push(`${outlines.length} to write`);
+    header.append(el('span', 'review-title', title.join(' · ')));
     const bulk = (label: string, accept: boolean) => {
       const b = el('button', 'review-all', label) as HTMLButtonElement;
       b.disabled = changes.length === 0;
       b.onclick = () => {
         for (const src of this.sources()) {
           const state = src.state();
-          const items = findReviewItems(state).filter((i) => !isCommentKind(i.kind));
+          const items = findReviewItems(state).filter((i) => !isResolvable(i.kind));
           if (items.length) src.dispatch(resolveSpec(state, items, accept));
         }
         this.render();
@@ -114,7 +118,7 @@ export class ReviewPanel {
     header.append(actions);
 
     const list = el('ul', 'review-list');
-    if (!all.length) list.append(el('li', 'review-empty', 'No changes or comments in this file or the files it includes. Turn on Track changes to record edits, or press Comment to add a note.'));
+    if (!all.length) list.append(el('li', 'review-empty', 'No changes, comments or outlines in this file or the files it includes. Turn on Track changes to record edits, press Comment to add a note, or Outline to sketch what to write.'));
     const withItems = groups.filter((g) => g.items.length);
     for (const { src, items } of withItems) {
       // Name the file when there's more than one, or when the items aren't in the open file.
@@ -137,6 +141,8 @@ export class ReviewPanel {
       body.append(el('del', 'rv-deleted', old || '∅'), document.createTextNode(' → '), el('ins', 'rv-added', text || '∅'));
     } else if (it.kind === 'highlight') {
       body.append(el('div', 'review-note', text || '(empty comment)'), el('div', 'review-quote', old ?? ''));
+    } else if (it.kind === 'outline') {
+      body.append(el('div', 'review-note', text || '(empty outline)'));
     } else if (it.kind === 'comment' || it.kind === 'note') {
       body.append(el('div', 'review-note', text || '(empty comment)'));
       if (old) body.append(el('div', 'review-quote', old));
@@ -156,12 +162,13 @@ export class ReviewPanel {
       };
       return b;
     };
-    if (isCommentKind(it.kind)) buttons.append(button('✓ Resolve', it.kind === 'highlight' ? 'Remove the comment, keep the text' : it.kind === 'note' && it.quote ? 'Remove the note, keep the text' : 'Delete the note', true));
+    if (it.kind === 'outline') buttons.append(button('✓ Done', 'Written: remove the outline', true));
+    else if (isCommentKind(it.kind)) buttons.append(button('✓ Resolve', it.kind === 'highlight' ? 'Remove the comment, keep the text' : it.kind === 'note' && it.quote ? 'Remove the note, keep the text' : 'Delete the note', true));
     else buttons.append(button('✓ Accept', 'Accept change', true), button('✗ Reject', 'Reject change', false));
     li.append(meta, body, buttons);
     li.onclick = () => {
       // Put the cursor just inside the item so visual mode shows its actions.
-      const a = it.kind === 'note' ? it.args[it.args.length - 1] : it.args[0];
+      const a = it.kind === 'note' || it.kind === 'outline' ? it.args[it.args.length - 1] : it.args[0];
       src.reveal(Math.min(a.open + 1, src.state().doc.length));
     };
     return li;

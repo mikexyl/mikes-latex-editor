@@ -26,6 +26,9 @@ function build(state: EditorState): DecorationSet {
       }
       if (it.args.length === 2) mark(it.args[0], 'rv-note-author');
       mark(it.args[it.args.length - 1], 'rv-note-text', it.author ? `Note by ${it.author}` : 'Note');
+    } else if (it.kind === 'outline') {
+      if (it.args.length === 2) mark(it.args[0], 'rv-outline-author');
+      mark(it.args[it.args.length - 1], 'rv-outline-text', it.author ? `To write (outline by ${it.author})` : 'To write (outline)');
     } else mark(it.args[0], 'rv-comment-text');
   }
   return Decoration.set(marks, true);

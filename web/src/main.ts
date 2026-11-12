@@ -8,7 +8,7 @@ import { api, setProjectRoot, ConflictError, type Project, type CompileResult, t
 import { editorExtensions, createState, goToLine, setModes, supportsVisual, type Modes } from './editor.ts';
 import { ReviewPanel, type ReviewSource } from './review/panel.ts';
 import { findIncludes } from './review/model.ts';
-import { addComment, setCommentPrefs, type CommentPrefs } from './review/commands.ts';
+import { addComment, addOutline, suggestDeletion, setCommentPrefs, type CommentPrefs } from './review/commands.ts';
 import { compareField, setCompareBase } from './compare/diff.ts';
 import { setAssetBase } from './visual/widgets.ts';
 import { setIncludeHost, includeHeights } from './visual/includes.ts';
@@ -951,6 +951,14 @@ $('track-toggle').onclick = () => {
 // take focus from it.
 $('comment-btn').onmousedown = (e) => e.preventDefault();
 $('comment-btn').onclick = () => { addComment(activeEditor()?.v ?? view); };
+$('strike-btn').onmousedown = (e) => e.preventDefault();
+$('strike-btn').onclick = () => {
+  const v = activeEditor()?.v ?? view;
+  if (v.state.selection.main.empty) { setStatus('Select the text to strike out first.', true); v.focus(); return; }
+  suggestDeletion(v);
+};
+$('outline-btn').onmousedown = (e) => e.preventDefault();
+$('outline-btn').onclick = () => { addOutline(activeEditor()?.v ?? view); };
 $('review-toggle').onclick = () => {
   const panel = $('review');
   panel.hidden = !panel.hidden;

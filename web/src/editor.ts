@@ -10,7 +10,7 @@ import { latex } from './visual/language.ts';
 import { visualDecorations, enterNewParagraph } from './visual/decorations.ts';
 import { reviewHighlight } from './review/highlight.ts';
 import { trackChanges } from './review/track.ts';
-import { addComment } from './review/commands.ts';
+import { addComment, addOutline, suggestDeletion } from './review/commands.ts';
 import { compareExtension } from './compare/diff.ts';
 import { noteMacroFacet } from './review/model.ts';
 import { selectionToolbar } from './review/selection-toolbar.ts';
@@ -63,6 +63,8 @@ export function editorExtensions(hooks: EditorHooks): Extension[] {
     Prec.high(keymap.of([
       { key: 'Mod-s', preventDefault: true, run: () => (hooks.onSave(), true) },
       { key: 'Mod-Alt-m', preventDefault: true, run: addComment },
+      { key: 'Mod-Alt-o', preventDefault: true, run: addOutline },
+      { key: 'Mod-Alt-d', preventDefault: true, run: suggestDeletion },
       { key: 'Mod-Alt-j', preventDefault: true, run: () => (hooks.onFindInPdf(), true) },
     ])),
     EditorView.updateListener.of((u) => { if (u.docChanged) hooks.onChange(); }),

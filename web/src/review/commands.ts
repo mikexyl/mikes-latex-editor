@@ -1,6 +1,6 @@
 import type { EditorView } from '@codemirror/view';
 import { EditorSelection } from '@codemirror/state';
-import { reviewAction } from './model.ts';
+import { OUTLINE_MACRO, reviewAction } from './model.ts';
 import { unsafeAt, unsafeRange, reviewNotice, REASONS } from './track.ts';
 
 export type CommentPrefs = {
@@ -31,20 +31,20 @@ const fail = (why: string) => {
  * app (Electron) doesn't support prompt(), which returns nothing there. Resolves to the trimmed
  * answer, or null when cancelled.
  */
-function askInitials(): Promise<string | null> {
+function askInitials(action = 'Add note'): Promise<string | null> {
   const d = document.createElement('dialog');
   d.className = 'project-dialog initials-dialog';
   d.setAttribute('aria-labelledby', 'initials-dialog-title');
   d.innerHTML = `
     <div class="pd-header"><h2 id="initials-dialog-title">Your initials</h2></div>
     <form class="pd-section" method="dialog">
-      <p class="pd-note">Notes are signed with them, e.g. \\${prefs.macro}{XL}{…}. You can change them later in the review panel.</p>
+      <p class="pd-note">Notes and outlines are signed with them, e.g. \\${prefs.macro}{XL}{…}. You can change them later in the review panel.</p>
       <div class="pd-path">
         <input name="initials" type="text" placeholder="XL" spellcheck="false" autocomplete="off" aria-label="Initials" />
       </div>
       <div class="pd-footer">
         <button type="button" value="cancel">Cancel</button>
-        <button type="submit" class="primary" value="ok">Add note</button>
+        <button type="submit" class="primary" value="ok">${action}</button>
       </div>
     </form>`;
   document.body.append(d);
@@ -107,6 +107,38 @@ export function addComment(view: EditorView): boolean {
     selection: EditorSelection.cursor(r.from + prefix.length),
     annotations: reviewAction.of(true),
     userEvent: 'review.comment',
+    scrollIntoView: true,
+  });
+  view.focus();
+  return true;
+}
+
+/**
+ * Outline something still to be written: \revoutline{XL}{…} at the cursor, with the cursor inside
+ * ready to type what should go there. A selection becomes the outline's text (e.g. notes you typed).
+ */
+export function addOutline(view: EditorView): boolean {
+  const { state } = view;
+  const r = state.selection.main;
+  if (!prefs.initials) {
+    void askInitials('Add outline').then((answer) => {
+      if (answer === null) { view.focus(); return; }
+      prefs = { ...prefs, initials: answer };
+      onPrefsChange(prefs);
+      if (answer) addOutline(view);
+      else view.focus();
+    });
+    return true;
+  }
+  const why = r.empty ? unsafeAt(state, r.to) : unsafeRange(state, r.from, r.to);
+  if (why) return fail(why);
+  const selected = state.sliceDoc(r.from, r.to);
+  const prefix = `\\${OUTLINE_MACRO}{${prefs.initials}}{`;
+  view.dispatch({
+    changes: { from: r.from, to: r.to, insert: `${prefix}${selected}}` },
+    selection: r.empty ? EditorSelection.cursor(r.from + prefix.length) : EditorSelection.range(r.from + prefix.length, r.from + prefix.length + selected.length),
+    annotations: reviewAction.of(true),
+    userEvent: 'review.outline',
     scrollIntoView: true,
   });
   view.focus();

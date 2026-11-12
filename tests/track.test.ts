@@ -110,5 +110,13 @@ s = mk('We use \\revnote[{a]b}]{XL}{x}.', undefined, 'revnote');
 check('quoted note with ] in braces', findReviewItems(s).map((i) => i.quote ? s.sliceDoc(i.quote.from, i.quote.to) : '').join(','), 'a]b');
 s = mk('\\note[id=XL]{one-arg}', undefined, 'revnote');
 check('one-arg note keeps [id=..] as its author', findReviewItems(s).map((i) => `${i.author}:${i.note}:${i.quote ? 'q' : ''}`).join(','), 'XL:one-arg:');
+// \revoutline{author}{what to write}: text still to be written
+s = mk('Intro. \\revoutline{XL}{Motivate the problem} Next.', undefined, 'revnote');
+notes = findReviewItems(s);
+check('outline found', notes.map((i) => `${i.kind}:${i.author}:${i.note}`).join(','), 'outline:XL:Motivate the problem');
+check('outline done removes it', body(s.update(resolveSpec(s, notes, true)).state), 'Intro. Next.');
+s = mk('A \\revoutline{XL}{say why} B', 'A \\revoutline{XL}{say'.length, 'revnote');
+s = type(s, ' more');
+check('typing in outline untracked', body(s), 'A \\revoutline{XL}{say more why} B');
 console.log(fail ? `${fail} FAILED` : 'all passed');
 if (fail) process.exit(1);

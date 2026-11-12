@@ -22,13 +22,15 @@ Overleaf, and diff cleanly.
 \added{new text}   \deleted{old text}   \replaced{new}{old}
 \revnote[the sentence in question]{XL}{Do we need this?}
 \highlight[comment={Which metric?}]{accuracy}   \comment{A standalone note}
+\revoutline{XL}{Motivate the problem with a failure case}
 ```
 
 The review macros use the syntax of the [`changes`](https://ctan.org/pkg/changes) package. When
 compiling, the editor supplies definitions for anything the paper doesn't define, so no preamble
 changes are needed. To compile elsewhere (Overleaf, a co-author's TeX), add
-`\usepackage{changes}` and `\newcommand{\revnote}[3][]{#1\textcolor{red}{[#2: #3]}}`, or accept
-and resolve everything first.
+`\usepackage{changes}`, `\newcommand{\revnote}[3][]{#1\textcolor{red}{[#2: #3]}}` and
+`\newcommand{\revoutline}[2]{\textcolor{blue}{[To write (#1): #2]}}`, or accept and resolve
+everything first.
 
 **3. TeX is bundled and easy to configure.**
 The app ships its own TeX Live (TeX Live 2026, with the classes and packages papers usually need:
@@ -47,8 +49,13 @@ packages, or switches to the system's TeX.
   `\revnote{XL}{…}` with your initials, or `\revnote[selection]{XL}{…}` on a selection, which
   highlights the text the note is about. Notes print in red in the PDF. Notes written as
   `\note{…}{…}` by earlier versions still work.
-- **Review panel**: every change and comment in the file, with Accept, Reject and Resolve, one at
-  a time or all at once.
+- **Outline** (⌘⌥O / Ctrl+Alt+O): sketch what still has to be written with
+  `\revoutline{XL}{…}`, shown as a "To write" box and printed in blue in the PDF. Mark it done
+  once written.
+- **Delete** (⌘⌥D / Ctrl+Alt+D): strike out the selection as `\deleted{…}`. The text stays in the
+  source until the deletion is accepted.
+- **Review panel**: every change, comment and outline in the file and the files it includes, with
+  Accept, Reject, Resolve and Done, one at a time or all at once.
 - **Source ↔ PDF**: *Find in PDF* (⌘⌥J / Ctrl+Alt+J) jumps to the cursor's spot in the PDF, and
   double-clicking the PDF jumps to the source, across `\input` files.
 - **Compare with a git commit**: see what changed since then, plus a latexdiff PDF if

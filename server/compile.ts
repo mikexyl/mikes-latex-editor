@@ -50,7 +50,8 @@ export function compileFile(
 // proposed text: additions in blue, deletions and comments hidden. Note macros (the project's,
 // \revnote by default, and \note from earlier versions) print \revnote{XL}{text} as a red
 // [XL: text], unless the document or a package defines them; \revnote[paper text]{XL}{text}, a note
-// about a selection, prints the paper text as usual first.
+// about a selection, prints the paper text as usual first. Outlines, \revoutline{XL}{text}, print
+// as a blue [To write (XL): text].
 const noteFallback = (name: string) =>
   `  \\providecommand\\${name}[3][]{#1\\ifdefined\\textcolor\\textcolor{red}{[#2: #3]}\\else[#2: #3]\\fi}%\n`;
 const reviewFallbacks = (note: string) => String.raw`\AtBeginDocument{%
@@ -59,6 +60,7 @@ const reviewFallbacks = (note: string) => String.raw`\AtBeginDocument{%
   \providecommand\replaced[3][]{\ifdefined\textcolor\textcolor{blue}{#2}\else #2\fi}%
   \providecommand\highlight[2][]{#2}%
   \providecommand\comment[2][]{}%
+  \providecommand\revoutline[2]{\ifdefined\textcolor\textcolor{blue}{[To write (#1): #2]}\else[To write (#1): #2]\fi}%
 ` + [...new Set([note, 'note'])].map(noteFallback).join('') + `}
 `;
 
