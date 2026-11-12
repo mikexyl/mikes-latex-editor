@@ -204,17 +204,64 @@ async function refreshFromDisk() {
   }
 }
 
+/** The one change that turns `old` into `next`: only the differing middle, so the cursor and scroll
+ *  position outside it stay where they were. */
+function minimalChange(old: string, next: string) {
+  const max = Math.min(old.length, next.length);
+  let a = 0;
+  while (a < max && old.charCodeAt(a) === next.charCodeAt(a)) a++;
+  let b = 0;
+  while (b < max - a && old.charCodeAt(old.length - 1 - b) === next.charCodeAt(next.length - 1 - b)) b++;
+  return { from: a, to: old.length - b, insert: next.slice(a, next.length - b) };
+}
+
 function replaceContent(f: OpenFile, content: string) {
   const live = f === current ? view : nested.get(f.path);
   if (live) {
-    live.dispatch({ changes: { from: 0, to: live.state.doc.length, insert: content } });
+    live.dispatch({ changes: minimalChange(live.state.doc.toString(), content) });
     f.savedDoc = live.state.doc;
   } else {
-    f.state = f.state.update({ changes: { from: 0, to: f.state.doc.length, insert: content } }).state;
+    f.state = f.state.update({ changes: minimalChange(f.state.doc.toString(), content) }).state;
     f.savedDoc = f.state.doc;
   }
   renderDirty();
 }
+
+/**
+ * ↻ Reload: re-read every open file and the file tree from disk. Files with unsaved edits are only
+ * reloaded if the user agrees to discard those edits.
+ */
+async function reloadFromDisk() {
+  clearTimeout(autosaveTimer); // don't save over what's about to be read
+  const dirty = [...open.values()].filter(isDirty);
+  const discard = dirty.length > 0 && confirm(
+    `Unsaved edits in ${dirty.map((f) => f.path).join(', ')}.\n\n` +
+    'OK: discard them and reload everything from disk.\nCancel: keep them, reload the other files only.');
+  let changed = 0;
+  for (const f of open.values()) {
+    if (isDirty(f) && !discard) continue;
+    try {
+      const { content, mtime } = await api.read(f.path);
+      f.mtime = mtime;
+      if (content !== liveState(f).doc.toString()) { replaceContent(f, content); changed++; }
+      else if (isDirty(f)) { f.savedDoc = liveState(f).doc; renderDirty(); }
+      if (conflictPath === f.path) hideConflict();
+    } catch {
+      /* deleted on disk: keep the buffer */
+    }
+  }
+  try {
+    project.tree = (await api.project()).tree; // files added or removed outside
+    renderTree();
+  } catch { /* keep the old tree */ }
+  void refreshProjectMacros();
+  const kept = discard ? 0 : dirty.length;
+  setStatus(`${changed ? `Reloaded ${changed} file${changed === 1 ? '' : 's'} from disk.` : 'Up to date with the disk.'}` +
+    (kept ? ` Kept unsaved edits in ${kept} file${kept === 1 ? '' : 's'}.` : ''));
+  (activeEditor()?.v ?? view).focus();
+}
+$('reload-btn').onmousedown = (e) => e.preventDefault(); // keep the editor's focus and cursor
+$('reload-btn').onclick = () => void reloadFromDisk();
 
 /** The document position shown at the top of the editor (read from the screen). */
 function topVisiblePos(): number | undefined {

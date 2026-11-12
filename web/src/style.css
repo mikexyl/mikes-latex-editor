@@ -126,6 +126,8 @@ button.link:hover { color: var(--text); text-decoration: underline; }
 }
 .pane-header .spacer { flex: 1; }
 .pane-header button { padding: 1px 8px; }
+.pane-header .reload-btn { border-color: transparent; background: none; color: var(--muted); padding: 0 6px; font-size: 15px; line-height: 1.3; }
+.pane-header .reload-btn:hover { color: var(--text); background: var(--hover); }
 
 .files {
   overflow: auto;
