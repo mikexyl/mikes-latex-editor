@@ -10,7 +10,7 @@ import {
   TextWidget, ChipWidget, MathWidget, ItemWidget, EnvLineWidget, PreambleWidget, TitleWidget, GraphicsWidget,
   CommentWidget, ReviewActionsWidget, CommentFoldWidget, type TitleAuthor, type TitleExtra,
 } from './widgets.ts';
-import { groupEnd, parseTabular, TableWidget } from './table.ts';
+import { groupEnd, parseTabular, TableWidget, textMacro } from './table.ts';
 import { IncludeWidget } from './includes.ts';
 import { itemFromNode, noteMacroFacet } from '../review/model.ts';
 
@@ -727,6 +727,17 @@ function build(state: EditorState, tree: Tree): Built {
         const cmd = state.sliceDoc(ctrl.from + 1, ctrl.to);
         const args = node.getChildren('TextArgument');
         const brace = (a: SyntaxNode, which: 'OpenBrace' | 'CloseBrace') => a.getChild(which);
+
+        // Your own text macros, e.g. \newcommand{\method}{BBS}: \method{} reads "BBS".
+        const empty = args.length === 1 && state.sliceDoc(args[0].from, args[0].to).replace(/\s/g, '') === '{}';
+        if (!args.length || empty) {
+          const text = textMacro(cmd, macros.macros);
+          if (text !== null) {
+            const to = empty ? args[0].to : ctrl.to;
+            if (!touches(ctrl.from, to)) atomic.push(Decoration.replace({ widget: new TextWidget(text, 'vc-macro') }).range(ctrl.from, to));
+            return false;
+          }
+        }
 
         // Pseudocode keywords (always rendered, like list bullets).
         if (algoDepth > 0 && cmd in ALGO_PLAIN && !args.length) {

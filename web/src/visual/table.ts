@@ -166,6 +166,19 @@ function expandTextMacros(tex: string, macros: Macros): string {
   return tex;
 }
 
+/**
+ * A user macro without arguments that stands for text (\newcommand{\method}{BBS}) as that text, or
+ * null if it isn't one: takes arguments, is math (\mathrm..., $...$) or comes out empty.
+ */
+export function textMacro(name: string, macros: Macros): string | null {
+  const body = macros[`\\${name}`];
+  if (body === undefined || body.includes('#')) return null;
+  const tex = expandTextMacros(body, macros);
+  if (/\$|\\(?:math|operatorname|ensuremath|[a-z]*(?:space|skip|box|rule)\b)|[_^]/.test(tex)) return null;
+  const text = plain(tex.replace(/\\(?:textbf|textit|emph|textsc|textrm|textsf|texttt|underline)\s*/g, ''));
+  return text.trim() ? text : null;
+}
+
 function plain(tex: string): string {
   return tex
     .replace(/\\([%&_#$])/g, '$1')
