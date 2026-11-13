@@ -10,7 +10,7 @@ import {
   TextWidget, ChipWidget, MathWidget, ItemWidget, EnvLineWidget, PreambleWidget, TitleWidget, GraphicsWidget,
   CommentWidget, ReviewActionsWidget, CommentFoldWidget, type TitleAuthor, type TitleExtra,
 } from './widgets.ts';
-import { parseTabular, TableWidget } from './table.ts';
+import { groupEnd, parseTabular, TableWidget } from './table.ts';
 import { IncludeWidget } from './includes.ts';
 import { itemFromNode, noteMacroFacet } from '../review/model.ts';
 
@@ -406,14 +406,24 @@ function build(state: EditorState, tree: Tree): Built {
   const renderTable = (node: SyntaxNode, begin: SyntaxNode, end: SyntaxNode) => {
     if (!aloneOnLines(state, node) || touchesLines(node.from, node.to)) return false;
     // The column spec is the last {..} group right after \begin{tabular} (tabularx has a width first).
-    const after = state.sliceDoc(begin.from, Math.min(end.from, begin.from + 400)).replace(/^\\begin\s*\{[^}]*\}/, '');
-    const groups = /^(\s*\{(?:[^{}]|\{[^{}]*\})*\})(\s*\{(?:[^{}]|\{[^{}]*\})*\})?/.exec(after);
-    if (!groups) return false;
+    const head = state.sliceDoc(begin.from, begin.to).match(/^\\begin\s*\{[^}]*\}/)![0].length;
+    const after = state.sliceDoc(begin.from + head, Math.min(end.from, begin.from + 400));
+    // Up to two balanced {..} groups (they may nest, as in @{\hspace{7pt}}).
+    const groups: { from: number; to: number }[] = [];
+    let at = 0;
+    while (groups.length < 2) {
+      let open = at;
+      while (/\s/.test(after[open] ?? '')) open++;
+      const close = groupEnd(after, open);
+      if (close < 0) break;
+      groups.push({ from: open, to: close });
+      at = close;
+    }
+    if (!groups.length) return false;
     const envName = envNameOf(node, state) ?? 'tabular';
-    const specGroup = envName === 'tabularx' && groups[2] ? groups[2] : groups[1];
-    const consumed = envName === 'tabularx' && groups[2] ? groups[0] : groups[1];
-    const spec = specGroup.trim().slice(1, -1);
-    const bodyStart = begin.from + state.sliceDoc(begin.from, begin.to).match(/^\\begin\s*\{[^}]*\}/)![0].length + consumed.length;
+    const g = envName === 'tabularx' && groups[1] ? groups[1] : groups[0];
+    const spec = after.slice(g.from + 1, g.to - 1);
+    const bodyStart = begin.from + head + g.to;
     const table = parseTabular(spec, state.sliceDoc(bodyStart, end.from));
     if (!table) return false;
     atomic.push(Decoration.replace({

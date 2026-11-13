@@ -37,13 +37,51 @@ function splitTop(text: string, sep: RegExp): string[] {
   return out;
 }
 
+/** Index just past the balanced {...} group that opens at text[open], or -1. */
+export function groupEnd(text: string, open: number): number {
+  if (text[open] !== '{') return -1;
+  let depth = 0;
+  for (let i = open; i < text.length; i++) {
+    const c = text[i];
+    if (c === '\\') { i++; continue; }
+    if (c === '{') depth++;
+    else if (c === '}' && --depth === 0) return i + 1;
+  }
+  return -1;
+}
+
+/** The column spec without @{..}, !{..}, >{..}, <{..} and |, which only space or decorate columns. */
+function stripDecorations(spec: string): string | null {
+  let out = '';
+  for (let i = 0; i < spec.length; i++) {
+    const c = spec[i];
+    if (c === '|') continue;
+    if ('@!><'.includes(c)) {
+      let j = i + 1;
+      while (/\s/.test(spec[j] ?? '')) j++;
+      const end = groupEnd(spec, j);
+      if (end < 0) return null;
+      i = end - 1;
+      continue;
+    }
+    out += c;
+  }
+  return out;
+}
+
 function parseAligns(spec: string): string[] | null {
   const aligns: string[] = [];
-  const s = spec.replace(/@\{[^}]*\}|!\{[^}]*\}|>\{[^}]*\}|<\{[^}]*\}|\|/g, '');
+  const s = stripDecorations(spec);
+  if (s === null) return null;
   for (let i = 0; i < s.length; i++) {
     const c = s[i];
     if (c === 'l' || c === 'c' || c === 'r') aligns.push(c);
-    else if (c === 'p' || c === 'm' || c === 'b' || c === 'X') { aligns.push('l'); if (s[i + 1] === '{') i = s.indexOf('}', i); }
+    else if (c === 'p' || c === 'm' || c === 'b') {
+      aligns.push('l');
+      const end = groupEnd(s, i + 1);
+      if (end < 0) return null;
+      i = end - 1;
+    } else if (c === 'X') aligns.push('l');
     else if (c === 'S') aligns.push('c');
     else if (c === '*') {
       const m = /^\*\{(\d+)\}\{([^}]*)\}/.exec(s.slice(i));
@@ -100,7 +138,7 @@ function renderCell(target: HTMLElement, tex: string, macros: Macros) {
       target.append(span);
       continue;
     }
-    let rest = part;
+    let rest = expandTextMacros(part, macros);
     const fmt = /\\(textbf|textit|emph|underline|texttt)\s*\{([^{}]*)\}/;
     let m: RegExpExecArray | null;
     while ((m = fmt.exec(rest))) {
@@ -113,6 +151,19 @@ function renderCell(target: HTMLElement, tex: string, macros: Macros) {
     }
     target.append(plain(rest));
   }
+}
+
+/** Argument-free macros like \method -> BBS, so a cell shows the text the PDF has. */
+function expandTextMacros(tex: string, macros: Macros): string {
+  for (let pass = 0; pass < 5; pass++) {
+    const next = tex.replace(/\\([A-Za-z@]+)(?![A-Za-z@])(\{\})?/g, (m, name: string) => {
+      const body = macros[`\\${name}`];
+      return body !== undefined && !body.includes('#') ? body : m;
+    });
+    if (next === tex) break;
+    tex = next;
+  }
+  return tex;
 }
 
 function plain(tex: string): string {
