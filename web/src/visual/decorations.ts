@@ -406,7 +406,7 @@ function build(state: EditorState, tree: Tree): Built {
   /** Replace a simple tabular with a rendered table; false if it can't be parsed (source stays). */
   const renderTable = (node: SyntaxNode, begin: SyntaxNode, end: SyntaxNode) => {
     if (!aloneOnLines(state, node) || touchesLines(node.from, node.to)) return false;
-    // The column spec is the last {..} group right after \begin{tabular} (tabularx has a width first).
+    // The column spec is the last {..} group right after \begin{tabular} (tabularx and tabular* have a width first).
     const head = state.sliceDoc(begin.from, begin.to).match(/^\\begin\s*\{[^}]*\}/)![0].length;
     const after = state.sliceDoc(begin.from + head, Math.min(end.from, begin.from + 400));
     // Up to two balanced {..} groups (they may nest, as in @{\hspace{7pt}}).
@@ -422,7 +422,7 @@ function build(state: EditorState, tree: Tree): Built {
     }
     if (!groups.length) return false;
     const envName = envNameOf(node, state) ?? 'tabular';
-    const g = envName === 'tabularx' && groups[1] ? groups[1] : groups[0];
+    const g = (envName === 'tabularx' || envName === 'tabular*') && groups[1] ? groups[1] : groups[0];
     const spec = after.slice(g.from + 1, g.to - 1);
     const bodyStart = begin.from + head + g.to;
     const table = parseTabular(spec, state.sliceDoc(bodyStart, end.from));
@@ -538,7 +538,7 @@ function build(state: EditorState, tree: Tree): Built {
           algoDepth++;
           indentPseudocode(begin.to, end.from);
         }
-        if (name === 'TabularEnvironment' || env === 'tabular' || env === 'tabularx') {
+        if (name === 'TabularEnvironment' || env === 'tabular' || env === 'tabularx' || env === 'tabular*') {
           if (renderTable(node, begin, end)) return false;
         }
         // TikZ: compiled with the paper's preamble and shown as a picture until the cursor enters.

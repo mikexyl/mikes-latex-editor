@@ -22,6 +22,9 @@ check('rules', [t?.rows[0].ruleAbove, t?.rows[1].ruleAbove, t?.ruleBelow], ['thi
 check('p{} with nested width', parseTabular(String.raw`lp{0.3\linewidth}`, 'a & b \\\\')?.aligns.join(''), 'll');
 check('>{\\centering\\arraybackslash}', parseTabular(String.raw`>{\centering\arraybackslash}p{2cm}|c`, 'a & b')?.aligns.join(''), 'lc');
 
+const spaced = parseTabular('lr', String.raw`\toprule A & B \\ \midrule \multicolumn{2}{@{}l}{\textbf{S3E}} \\ \addlinespace[2pt] x & 1 \\ \bottomrule`);
+check('addlinespace is spacing, not a cell or rule', spaced?.rows.map((r) => [r.cells[0].tex, r.ruleAbove]), [['A', 'thick'], ['\\textbf{S3E}', 'thin'], ['x', null]]);
+
 const m = { '\\method': 'BBS', '\\methodlong': 'Bounded Belief Sharing', '\\x': '\\mathrm{x}', '\\full': '\\textbf{\\method} method', '\\pair': '(#1, #2)' };
 check('text macro', textMacro('methodlong', m), 'Bounded Belief Sharing');
 check('nested text macro', textMacro('full', m), 'BBS method');

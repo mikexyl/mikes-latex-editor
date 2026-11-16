@@ -95,7 +95,23 @@ function parseAligns(spec: string): string[] | null {
   return aligns.length ? aligns : null;
 }
 
-const RULE = /^\s*\\(toprule|midrule|bottomrule|hline|cline\s*\{[^}]*\}|cmidrule(\([^)]*\))?\s*\{[^}]*\}|specialrule\s*\{[^}]*\}\s*\{[^}]*\}\s*\{[^}]*\})\s*/;
+/** \multicolumn{n}{spec}{text} filling a whole cell; the spec may hold braces, as in @{}l. */
+function multicolumn(cell: string): Cell | null {
+  const head = /^\s*\\multicolumn\s*\{(\d+)\}\s*/.exec(cell);
+  if (!head) return null;
+  const specEnd = groupEnd(cell, head[0].length);
+  if (specEnd < 0) return null;
+  let open = specEnd;
+  while (/\s/.test(cell[open] ?? '')) open++;
+  const textEnd = groupEnd(cell, open);
+  if (textEnd < 0 || cell.slice(textEnd).trim()) return null;
+  return {
+    tex: cell.slice(open + 1, textEnd - 1).trim(), span: Number(head[1]),
+    align: parseAligns(cell.slice(head[0].length + 1, specEnd - 1))?.[0] ?? null,
+  };
+}
+
+const RULE = /^\s*\\(toprule|midrule|bottomrule|hline|addlinespace(\s*\[[^\]]*\])?|cline\s*\{[^}]*\}|cmidrule(\([^)]*\))?\s*\{[^}]*\}|specialrule\s*\{[^}]*\}\s*\{[^}]*\}\s*\{[^}]*\})\s*/;
 
 export function parseTabular(spec: string, body: string): Table | null {
   const aligns = parseAligns(spec);
@@ -109,13 +125,13 @@ export function parseTabular(spec: string, body: string): Table | null {
     // Leading rules belong between rows.
     let m: RegExpExecArray | null;
     while ((m = RULE.exec(raw))) {
-      pendingRule = /toprule|bottomrule|specialrule/.test(m[1]) ? 'thick' : 'thin';
+      if (!m[1].startsWith('addlinespace')) pendingRule = /toprule|bottomrule|specialrule/.test(m[1]) ? 'thick' : 'thin';
       raw = raw.slice(m[0].length);
     }
     if (!raw.trim()) continue;
     const cells: Cell[] = splitTop(raw, /&/y).map((c) => {
-      const mc = /^\s*\\multicolumn\s*\{(\d+)\}\s*\{([^}]*)\}\s*\{([\s\S]*)\}\s*$/.exec(c);
-      if (mc) return { tex: mc[3].trim(), span: Number(mc[1]), align: parseAligns(mc[2])?.[0] ?? null };
+      const mc = multicolumn(c);
+      if (mc) return mc;
       return { tex: c.trim(), span: 1, align: null };
     });
     rows.push({ cells, ruleAbove: pendingRule });
