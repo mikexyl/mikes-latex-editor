@@ -3,6 +3,7 @@
 // Started by the command line (server/index.ts) or inside the desktop app (electron/main.ts).
 import express from 'express';
 import http from 'node:http';
+import { renderTikz } from './tikz.ts';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import fs from 'node:fs/promises';
@@ -259,6 +260,19 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     const main = String(req.query.main ?? '');
     resolveInRoot(root, main);
     res.json(await synctexPages(root, main));
+  }));
+
+  // One TikZ picture, compiled with the main file's preamble, for visual mode (see tikz.ts).
+  app.post('/api/tikz', wrap(async (req, res) => {
+    const root = rootOf(res);
+    const main = String(req.body?.main ?? '');
+    const code = String(req.body?.code ?? '');
+    resolveInRoot(root, main);
+    if (!/\\begin\s*\{tikzpicture\}/.test(code) || code.length > 200_000) { res.status(400).json({ error: 'not a tikzpicture' }); return; }
+    const preamble = typeof req.body?.preamble === 'string' && req.body.preamble.length < 500_000 ? req.body.preamble : undefined;
+    const result = await renderTikz(root, main, code, preamble);
+    if (result.ok) res.type('application/pdf').sendFile(result.pdf, { dotfiles: 'allow' });
+    else res.status(422).json({ error: result.error });
   }));
 
   app.get('/api/synctex/backward', wrap(async (req, res) => {

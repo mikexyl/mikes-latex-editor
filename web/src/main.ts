@@ -16,6 +16,7 @@ import { setAssetBase } from './visual/widgets.ts';
 import { setIncludeHost, includeHeights } from './visual/includes.ts';
 import { collectMacros, setProjectMacros } from './visual/math.ts';
 import { refreshVisual } from './visual/decorations.ts';
+import { setTikzContext } from './visual/tikz.ts';
 import { PdfViewer } from './pdf.ts';
 import { FileViewer, VIEWABLE } from './viewer.ts';
 import { MARKDOWN } from './markdown.ts';
@@ -423,6 +424,7 @@ async function refreshProjectMacros() {
     try { return (await api.read(path)).content; } catch { return ''; }
   };
   const mainText = await read(main);
+  const tikzChanged = setTikzContext(main, mainText);
   const texts = [mainText];
   const preamble = mainText.split(/\\begin\s*\{document\}/)[0].replace(/(^|[^\\])%.*$/gm, '$1');
   for (const m of preamble.matchAll(/\\(?:input|include)\s*\{([^}]+)\}/g)) {
@@ -435,7 +437,7 @@ async function refreshProjectMacros() {
       if (p) texts.push(await read(p));
     }
   }
-  if (setProjectMacros(collectMacros(texts.join('\n')))) {
+  if (setProjectMacros(collectMacros(texts.join('\n'))) || tikzChanged) {
     view.dispatch({ effects: refreshVisual.of(null) });
     for (const v of nested.values()) v.dispatch({ effects: refreshVisual.of(null) });
   }

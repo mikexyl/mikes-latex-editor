@@ -12,6 +12,7 @@ import {
 } from './widgets.ts';
 import { groupEnd, parseTabular, TableWidget, textMacro } from './table.ts';
 import { IncludeWidget } from './includes.ts';
+import { TikzWidget, tikzContextKey } from './tikz.ts';
 import { itemFromNode, noteMacroFacet } from '../review/model.ts';
 
 export const mouseDownEffect = StateEffect.define<boolean>();
@@ -539,6 +540,13 @@ function build(state: EditorState, tree: Tree): Built {
         }
         if (name === 'TabularEnvironment' || env === 'tabular' || env === 'tabularx') {
           if (renderTable(node, begin, end)) return false;
+        }
+        // TikZ: compiled with the paper's preamble and shown as a picture until the cursor enters.
+        if ((name === 'TikzPictureEnvironment' || env === 'tikzpicture') && aloneOnLines(state, node) && !touchesLines(node.from, node.to)) {
+          atomic.push(Decoration.replace({
+            widget: new TikzWidget(state.sliceDoc(node.from, node.to), tikzContextKey), block: true,
+          }).range(doc.lineAt(node.from).from, doc.lineAt(node.to).to));
+          return false;
         }
         if (env in ENV_LABELS) {
           const label = ENV_LABELS[env];

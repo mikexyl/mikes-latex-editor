@@ -43,6 +43,10 @@ packages, or switches to the system's TeX.
 
 - **Visual or Source mode**, switchable any time. In visual mode, single line breaks flow like in
   the PDF; Enter starts a new paragraph.
+- **TikZ pictures** show as pictures in visual mode: each `tikzpicture` is compiled on its own with
+  your main file's preamble (packages, `\usetikzlibrary`, macros), so it looks like it does in the
+  PDF. Click a picture to edit its code; it's drawn again when you leave it. A picture that doesn't
+  compile shows TeX's error (with an Install button when a package is missing).
 - **Track changes** (toolbar switch): typing, deleting and overwriting are recorded as
   `\added` / `\deleted` / `\replaced`, signed with your initials (`\deleted[id=XL]{…}`). Edits
   that would break the LaTeX are refused.

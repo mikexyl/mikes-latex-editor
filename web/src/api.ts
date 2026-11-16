@@ -109,6 +109,17 @@ export const api = {
 
   diffPdfUrl: (main: string) => withRoot(`/api/diff/pdf?main=${q(main)}&t=${Date.now()}`),
 
+  /** One TikZ picture compiled with `preamble` (the main file's), as PDF bytes; throws the TeX error. */
+  tikz: async (main: string, preamble: string, code: string) => {
+    const res = await call('/api/tikz', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ main, preamble, code }),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `${res.status} ${res.statusText}`);
+    return res.arrayBuffer();
+  },
+
   /** For each project file, [line, page] pairs from the last compile's SyncTeX data. */
   pageMap: (main: string) =>
     call(`/api/synctex/pages?main=${q(main)}`).then(json<{ pages: number; files: Record<string, [number, number][]> }>),

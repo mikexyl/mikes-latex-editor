@@ -340,6 +340,14 @@ button.link:hover { color: var(--text); text-decoration: underline; }
 .vc-graphics { display: block; text-align: center; padding: 6px 0; }
 span.vc-graphics { display: inline-block; vertical-align: middle; }
 .vc-graphics img { max-width: 100%; height: auto; }
+.vc-tikz { display: block; text-align: center; padding: 6px 0; contain: inline-size; cursor: text; }
+/* Pictures are drawn for white paper (black lines, transparent background): keep them on white. */
+.vc-tikz img { max-width: 100%; height: auto; background: #fff; border-radius: 3px; padding: 4px; box-sizing: content-box; }
+.vc-tikz-pending { color: var(--muted); font-size: 12px; padding: 18px 0; border: 1px dashed var(--border); border-radius: 4px; }
+.vc-tikz-error { text-align: left; border: 1px solid var(--border); border-left: 3px solid var(--error, #d1242f); border-radius: 4px; padding: 6px 10px; font-size: 12px; }
+.vc-tikz-error-head { font-weight: 600; }
+.vc-tikz-error-msg { color: var(--muted); font-family: var(--mono, monospace); margin-top: 2px; white-space: pre-wrap; }
+.vc-tikz-error button { margin-top: 6px; }
 
 /* Lists: one indent step per nesting level, with a hanging marker on \item lines. */
 .cm-visual .vc-list-1 { padding-left: 1.6em; }
