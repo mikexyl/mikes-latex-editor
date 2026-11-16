@@ -14,6 +14,7 @@ import { groupEnd, parseTabular, TableWidget, textMacro } from './table.ts';
 import { IncludeWidget } from './includes.ts';
 import { TikzWidget, tikzContextKey } from './tikz.ts';
 import { CopySectionWidget } from './copy.ts';
+import { tikzSpan } from './tikz-span.ts';
 import { itemFromNode, noteMacroFacet } from '../review/model.ts';
 
 export const mouseDownEffect = StateEffect.define<boolean>();
@@ -543,10 +544,11 @@ function build(state: EditorState, tree: Tree): Built {
           if (renderTable(node, begin, end)) return false;
         }
         // TikZ: compiled with the paper's preamble and shown as a picture until the cursor enters.
-        if ((name === 'TikzPictureEnvironment' || env === 'tikzpicture') && aloneOnLines(state, node) && !touchesLines(node.from, node.to)) {
+        const span = name === 'TikzPictureEnvironment' || env === 'tikzpicture' ? tikzSpan(doc.toString(), node.from, node.to) : null;
+        if (span && !touchesLines(span.from, span.to)) {
           atomic.push(Decoration.replace({
-            widget: new TikzWidget(state.sliceDoc(node.from, node.to), tikzContextKey), block: true,
-          }).range(doc.lineAt(node.from).from, doc.lineAt(node.to).to));
+            widget: new TikzWidget(state.sliceDoc(span.from, span.to), tikzContextKey), block: true,
+          }).range(doc.lineAt(span.from).from, doc.lineAt(span.to).to));
           return false;
         }
         if (env in ENV_LABELS) {
