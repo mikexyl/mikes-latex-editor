@@ -13,6 +13,7 @@ import {
 import { groupEnd, parseTabular, TableWidget, textMacro } from './table.ts';
 import { IncludeWidget } from './includes.ts';
 import { TikzWidget, tikzContextKey } from './tikz.ts';
+import { CopySectionWidget } from './copy.ts';
 import { itemFromNode, noteMacroFacet } from '../review/model.ts';
 
 export const mouseDownEffect = StateEffect.define<boolean>();
@@ -586,6 +587,8 @@ function build(state: EditorState, tree: Tree): Built {
         if (!ctrl || !arg || !title || !close || !state.sliceDoc(title.from, title.to).trim()) return;
         const level = HEADING_LEVEL[ctrl.name] ?? 'section';
         marks.push(Decoration.mark({ class: `vc-heading vc-heading-${level}` }).range(node.from, node.to));
+        // Copy this (sub)section's source (shown on hover, see style.css).
+        marks.push(Decoration.widget({ widget: new CopySectionWidget(level), side: 1 }).range(node.to));
         const showBraces = touches(ctrl.from, title.from) || touches(close.from, close.to);
         hide(node.from, title.from, showBraces ? '{' : '');
         hide(close.from, close.to, showBraces ? '}' : '');

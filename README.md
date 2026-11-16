@@ -59,6 +59,9 @@ packages, or switches to the system's TeX.
   once written.
 - **Delete** (⌘⌥D / Ctrl+Alt+D): strike out the selection as `\deleted{…}`. The text stays in the
   source until the deletion is accepted.
+- **Copy source**: *Copy file* (toolbar) copies the LaTeX of the file the cursor is in; in visual
+  mode each heading has a **Copy** button (on hover) for its (sub)section, up to the next heading
+  of the same level, and each inline `\input` file's header has one for the whole file.
 - **Join lines** (toolbar): joins source lines that break in the middle of a sentence (hard
   wrapping) into one line, in the selection or the whole file. A line that ends a sentence keeps
   its break; comments, `\\`, headings, environments, display math, tables and code are left

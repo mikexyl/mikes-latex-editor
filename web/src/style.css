@@ -272,6 +272,14 @@ button.link:hover { color: var(--text); text-decoration: underline; }
 .cm-visual .vc-preamble-line { font-family: var(--mono); font-size: 13px; background: var(--surface); }
 
 .vc-heading { font-family: var(--sans); font-weight: 650; color: var(--text); }
+/* Copy button after a heading (copy.ts): shown while hovering the heading's line. */
+.vc-copy-section {
+  font: 500 11px var(--sans); vertical-align: middle; margin-left: 10px; padding: 1px 7px;
+  border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--muted);
+  cursor: pointer; opacity: 0; transition: opacity 0.12s;
+}
+.cm-line:hover > .vc-copy-section, .cm-line:hover > * > .vc-copy-section, .vc-copy-section:focus-visible { opacity: 1; }
+.vc-copy-section:hover { color: var(--text); border-color: var(--muted); }
 .vc-heading-part, .vc-heading-chapter { font-size: 1.8em; }
 .vc-heading-section { font-size: 1.45em; }
 .vc-heading-subsection { font-size: 1.22em; }

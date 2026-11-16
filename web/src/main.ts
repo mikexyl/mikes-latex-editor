@@ -11,6 +11,7 @@ import { editorExtensions, createState, goToLine, setModes, supportsVisual, type
 import { ReviewPanel, type ReviewSource } from './review/panel.ts';
 import { findIncludes, reviewAction } from './review/model.ts';
 import { joinLines } from './join-lines.ts';
+import { copyText, flash } from './visual/copy.ts';
 import { addComment, addOutline, suggestDeletion, setCommentPrefs, withInitials, type CommentPrefs } from './review/commands.ts';
 import { compareField, setCompareBase } from './compare/diff.ts';
 import { setAssetBase } from './visual/widgets.ts';
@@ -392,7 +393,12 @@ setIncludeHost({
     openBtn.className = 'link';
     openBtn.textContent = 'Open file';
     openBtn.onclick = () => void openFile(path);
-    header.append(name, openBtn);
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'link';
+    copyBtn.textContent = 'Copy';
+    copyBtn.title = `Copy the LaTeX source of ${path}`;
+    copyBtn.onclick = () => void copyFile(path, nested.get(path)?.state.doc.toString() ?? '', copyBtn);
+    header.append(name, openBtn, copyBtn);
     wrapper.append(header);
     const v = new EditorView({ parent: wrapper, state: f.state });
     // Draw the whole file, not just the part CodeMirror thinks is on screen: inside the outer
@@ -1355,6 +1361,7 @@ function renderModeToggle() {
   $<HTMLButtonElement>('strike-btn').disabled = !enabled;
   $<HTMLButtonElement>('outline-btn').disabled = !enabled;
   $<HTMLButtonElement>('join-btn').disabled = !enabled;
+  $<HTMLButtonElement>('copy-btn').disabled = !current;
   $('editor').classList.toggle('tracking', tracking && enabled);
   for (const b of $('mode-toggle').querySelectorAll<HTMLButtonElement>('button')) {
     const active = enabled ? (b.dataset.mode === 'visual') === visualMode : b.dataset.mode === 'source';
@@ -1399,6 +1406,24 @@ $('strike-btn').onclick = () => {
 };
 $('outline-btn').onmousedown = (e) => e.preventDefault();
 $('outline-btn').onclick = () => { addOutline(activeEditor()?.v ?? view); };
+/** Copy a file's source (as edited, saved or not) and say so. */
+async function copyFile(path: string, text: string, button?: HTMLElement) {
+  try {
+    await copyText(text);
+  } catch (e) {
+    setStatus(`Couldn't copy: ${(e as Error).message}`, true);
+    return;
+  }
+  const lines = text ? text.split('\n').length : 0;
+  setStatus(`Copied the source of ${path} (${lines} line${lines === 1 ? '' : 's'}).`);
+  if (button) flash(button, 'Copied');
+}
+// Copy file: the whole file the cursor is in (often an inline \input file).
+$('copy-btn').onmousedown = (e) => e.preventDefault();
+$('copy-btn').onclick = () => {
+  const a = activeEditor();
+  if (a) void copyFile(a.path, a.v.state.doc.toString(), $('copy-btn'));
+};
 // Join lines (join-lines.ts): the selected lines, or with nothing selected, the whole file the
 // cursor is in (often an inline \input file). Not a tracked change: LaTeX reads a line break as a
 // space, so the PDF is the same. One undo step.
