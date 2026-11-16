@@ -10,6 +10,7 @@ import { api, setProjectRoot, rememberWindowProject, rememberedWindowProject, Co
 import { editorExtensions, createState, goToLine, setModes, supportsVisual, type Modes } from './editor.ts';
 import { ReviewPanel, type ReviewSource } from './review/panel.ts';
 import { findIncludes, reviewAction } from './review/model.ts';
+import { joinLines } from './join-lines.ts';
 import { addComment, addOutline, suggestDeletion, setCommentPrefs, withInitials, type CommentPrefs } from './review/commands.ts';
 import { compareField, setCompareBase } from './compare/diff.ts';
 import { setAssetBase } from './visual/widgets.ts';
@@ -1353,6 +1354,7 @@ function renderModeToggle() {
   $<HTMLButtonElement>('comment-btn').disabled = !enabled;
   $<HTMLButtonElement>('strike-btn').disabled = !enabled;
   $<HTMLButtonElement>('outline-btn').disabled = !enabled;
+  $<HTMLButtonElement>('join-btn').disabled = !enabled;
   $('editor').classList.toggle('tracking', tracking && enabled);
   for (const b of $('mode-toggle').querySelectorAll<HTMLButtonElement>('button')) {
     const active = enabled ? (b.dataset.mode === 'visual') === visualMode : b.dataset.mode === 'source';
@@ -1397,6 +1399,20 @@ $('strike-btn').onclick = () => {
 };
 $('outline-btn').onmousedown = (e) => e.preventDefault();
 $('outline-btn').onclick = () => { addOutline(activeEditor()?.v ?? view); };
+// Join lines (join-lines.ts): the selected lines, or with nothing selected, the whole file the
+// cursor is in (often an inline \input file). Not a tracked change: LaTeX reads a line break as a
+// space, so the PDF is the same. One undo step.
+$('join-btn').onmousedown = (e) => e.preventDefault();
+$('join-btn').onclick = () => {
+  const v = activeEditor()?.v ?? view;
+  const { doc, selection: { main: sel } } = v.state;
+  const text = doc.toString();
+  const joins = sel.empty ? joinLines(text) : joinLines(text, doc.lineAt(sel.from).from, doc.lineAt(sel.to).to);
+  if (joins.length) v.dispatch({ changes: joins, userEvent: 'join-lines' });
+  const where = sel.empty ? 'in this file' : 'in the selection';
+  setStatus(joins.length ? `Joined ${joins.length} line break${joins.length === 1 ? '' : 's'} inside sentences ${where}.` : `No sentence is broken over several lines ${where}.`);
+  v.focus();
+};
 $('review-toggle').onclick = () => {
   const panel = $('review');
   panel.hidden = !panel.hidden;

@@ -59,6 +59,10 @@ packages, or switches to the system's TeX.
   once written.
 - **Delete** (⌘⌥D / Ctrl+Alt+D): strike out the selection as `\deleted{…}`. The text stays in the
   source until the deletion is accepted.
+- **Join lines** (toolbar): joins source lines that break in the middle of a sentence (hard
+  wrapping) into one line, in the selection or the whole file. A line that ends a sentence keeps
+  its break; comments, `\\`, headings, environments, display math, tables and code are left
+  alone. The PDF doesn't change.
 - **Review panel**: every change, comment and outline in the file and the files it includes, with
   Accept, Reject, Resolve and Done, one at a time or all at once.
 - **Source ↔ PDF**: *Find in PDF* (⌘⌥J / Ctrl+Alt+J) jumps to the cursor's spot in the PDF, and
