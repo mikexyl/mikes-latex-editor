@@ -5,6 +5,7 @@ import { initProjectPicker, openProjectPicker } from './projects.ts';
 import { desktop } from './desktop.ts';
 import { initSettings } from './settings.ts';
 import { initTex, installProviding, texStatus } from './tex.ts';
+import { initVersion } from './version.ts';
 import { api, setProjectRoot, rememberWindowProject, rememberedWindowProject, ConflictError, type Project, type CompileResult, type Problem } from './api.ts';
 import { editorExtensions, createState, goToLine, setModes, supportsVisual, type Modes } from './editor.ts';
 import { ReviewPanel, type ReviewSource } from './review/panel.ts';
@@ -1519,6 +1520,7 @@ window.addEventListener('beforeunload', (e) => {
 
 initProjectPicker({ beforeSwitch: saveAll, setStatus });
 initTex();
+initVersion();
 initSettings({ onLayoutChange: () => { view.requestMeasure(); for (const v of nested.values()) v.requestMeasure(); } });
 
 // This window's project isn't open on the server any more (it restarted while the page stayed open).

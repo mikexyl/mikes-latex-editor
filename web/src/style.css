@@ -818,7 +818,8 @@ body.zen .editor-pane { background: var(--panel); }
 
 /* ---------- desktop app & TeX packages ---------- */
 .pd-choose { font-size: 11px; text-transform: none; letter-spacing: 0; margin-left: 8px; }
-#set-tex-manage { margin-top: 8px; width: 100%; }
+#set-tex-manage, #set-version-check { margin-top: 8px; width: 100%; }
+#set-version-status:empty { display: none; }
 .tex-dialog { width: min(680px, calc(100vw - 32px)); }
 .initials-dialog { width: min(380px, calc(100vw - 32px)); }
 .initials-dialog .pd-note { margin: 4px 0 10px; }
