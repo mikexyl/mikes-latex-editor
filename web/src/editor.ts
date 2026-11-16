@@ -15,6 +15,7 @@ import { pageBreaks } from './pages.ts';
 import { compareExtension } from './compare/diff.ts';
 import { noteMacroFacet } from './review/model.ts';
 import { selectionToolbar } from './review/selection-toolbar.ts';
+import { vim, Vim } from '@replit/codemirror-vim';
 
 const theme = EditorView.theme({
   // Follows the Font size setting (settings.ts): 2px under visual mode's size.
@@ -46,6 +47,15 @@ export type EditorHooks = {
 const visualCompartment = new Compartment();
 const trackCompartment = new Compartment();
 const noteCompartment = new Compartment();
+const vimCompartment = new Compartment();
+// Vim keys (Settings): ahead of every other keymap so Escape, hjkl, … reach vim first. The status
+// bar under the editor shows the mode and takes : commands; inline \input editors go without one.
+const vimMain = Prec.highest(vim({ status: true }));
+const vimInline = Prec.highest(vim());
+const vimExtension = (on: boolean, inline: boolean) => (on ? (inline ? vimInline : vimMain) : []);
+let saveHook = () => {};
+// :w saves, like ⌘S / Ctrl+S; :wq and :x just save too (there's no window to close).
+for (const [name, short] of [['write', 'w'], ['wq', 'wq'], ['xit', 'x']]) Vim.defineEx(name, short, () => saveHook());
 const visualExtensions: Extension = [
   visualDecorations,
   EditorView.editorAttributes.of({ class: 'cm-visual' }),
@@ -56,6 +66,7 @@ const visualExtensions: Extension = [
 export const supportsVisual = (path: string) => /\.(tex|ltx)$/i.test(path);
 
 export function editorExtensions(hooks: EditorHooks): Extension[] {
+  saveHook = hooks.onSave;
   return [
     basicSetup,
     pageBreaks,
@@ -74,7 +85,8 @@ export function editorExtensions(hooks: EditorHooks): Extension[] {
   ];
 }
 
-export type Modes = { visual: boolean; tracking: boolean; noteMacro: string };
+/** `inline`: an editor embedded for an \\input file, not the main one. */
+export type Modes = { visual: boolean; tracking: boolean; noteMacro: string; vim: boolean; inline?: boolean };
 
 export function createState(path: string, doc: string, base: Extension[], modes: Modes): EditorState {
   const isTex = supportsVisual(path);
@@ -90,6 +102,7 @@ export function createState(path: string, doc: string, base: Extension[], modes:
       visualCompartment.of(isTex && modes.visual ? visualExtensions : []),
       trackCompartment.of(isTex && modes.tracking ? trackChanges : []),
       noteCompartment.of(noteMacroFacet.of(modes.noteMacro)),
+      vimCompartment.of(vimExtension(modes.vim, !!modes.inline)),
     ],
   });
 }
@@ -102,6 +115,7 @@ export function setModes(view: EditorView, path: string, modes: Modes) {
       visualCompartment.reconfigure(tex && modes.visual ? visualExtensions : []),
       trackCompartment.reconfigure(tex && modes.tracking ? trackChanges : []),
       noteCompartment.reconfigure(noteMacroFacet.of(modes.noteMacro)),
+      vimCompartment.reconfigure(vimExtension(modes.vim, !!modes.inline)),
     ],
   });
 }

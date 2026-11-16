@@ -45,6 +45,7 @@
     "@lezer/generator": "^1.8.1",
     "@lezer/highlight": "^1.2.5",
     "@lezer/lr": "^1.4.12",
+    "@replit/codemirror-vim": "^6.4.0",
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.6",
     "codemirror": "^6.0.2",

@@ -45,7 +45,11 @@ function applyTheme(theme: Theme) {
   }
 }
 
-export function initSettings(opts: { onLayoutChange: () => void }) {
+export function initSettings(opts: { onLayoutChange: () => void; vim: boolean; onVimChange: (on: boolean) => void }) {
+  const vimBox = $<HTMLInputElement>('set-vim');
+  vimBox.checked = opts.vim;
+  vimBox.addEventListener('change', () => opts.onVimChange(vimBox.checked));
+
   const savedTheme = store.get('theme');
   let theme: Theme = savedTheme === 'light' || savedTheme === 'dark' ? savedTheme : 'system';
   applyTheme(theme);

@@ -74,9 +74,10 @@ let tracking = false; // per project, restored in start()
 // Per project. \revnote, not \note: beamer, seminar and others define \note.
 const DEFAULT_NOTE_MACRO = 'revnote';
 let commentPrefs: CommentPrefs = { style: 'note', initials: '', macro: DEFAULT_NOTE_MACRO };
-const modes = (): Modes => ({ visual: visualMode, tracking, noteMacro: commentPrefs.macro });
+let vimMode = store.get('vim') === 'on'; // Settings → Vim keys
+const modes = (): Modes => ({ visual: visualMode, tracking, noteMacro: commentPrefs.macro, vim: vimMode });
 
-const view = new EditorView({ parent: $('editor'), state: createState('', '', extensions, { visual: false, tracking: false, noteMacro: 'note' }) });
+const view = new EditorView({ parent: $('editor'), state: createState('', '', extensions, { visual: false, tracking: false, noteMacro: 'note', vim: false }) });
 const review = new ReviewPanel($('review'), () => reviewSources(), (changes, comments) => {
   const badge = $('review-count');
   badge.textContent = String(changes + comments);
@@ -397,7 +398,7 @@ setIncludeHost({
     // editor that guess lags behind, leaving blank stretches and changing heights (scroll jumps).
     // This is CodeMirror's print mode; section files are small enough for it to be cheap.
     (v as unknown as { viewState: { printing: boolean } }).viewState.printing = true;
-    setModes(v, path, modes());
+    setModes(v, path, { ...modes(), inline: true });
     v.dispatch({ effects: setPageBreaks.of(pageBreaksByFile.get(path) ?? []) });
     nested.set(path, v);
     pool.set(path, wrapper);
@@ -408,7 +409,7 @@ setIncludeHost({
 /** Apply the current modes (visual, tracking, note macro) to the main and inline editors. */
 function applyModes() {
   if (current) setModes(view, current.path, modes());
-  for (const [path, v] of nested) setModes(v, path, modes());
+  for (const [path, v] of nested) setModes(v, path, { ...modes(), inline: true });
 }
 
 /**
@@ -1464,8 +1465,9 @@ function setZen(on: boolean) {
 $('zen-btn').onclick = () => setZen(true);
 $('zen-exit').onclick = () => setZen(false);
 // Esc leaves Zen mode, unless it's closing something else first (search panel, completion, dialog).
+// With Vim keys, Esc belongs to vim (leaving insert mode), so only the button leaves Zen.
 window.addEventListener('keydown', (e) => {
-  if (!zen || e.key !== 'Escape' || e.defaultPrevented) return;
+  if (!zen || vimMode || e.key !== 'Escape' || e.defaultPrevented) return;
   if (document.querySelector('.cm-panels, .cm-tooltip-autocomplete, dialog[open]')) return;
   setZen(false);
 });
@@ -1523,7 +1525,11 @@ window.addEventListener('beforeunload', (e) => {
 initProjectPicker({ beforeSwitch: saveAll, setStatus });
 initTex();
 initVersion();
-initSettings({ onLayoutChange: () => { view.requestMeasure(); for (const v of nested.values()) v.requestMeasure(); } });
+initSettings({
+  onLayoutChange: () => { view.requestMeasure(); for (const v of nested.values()) v.requestMeasure(); },
+  vim: vimMode,
+  onVimChange: (on) => { vimMode = on; store.set('vim', on ? 'on' : 'off'); applyModes(); view.focus(); },
+});
 
 // This window's project isn't open on the server any more (it restarted while the page stayed open).
 window.addEventListener('project-switched', () => {

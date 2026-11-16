@@ -741,6 +741,14 @@ button.problems-summary:hover { text-decoration: none; color: var(--text); }
 .setting-presets { display: flex; gap: 4px; }
 .setting-presets button { flex: 1; padding: 2px 4px; font-size: 12px; }
 .setting-presets button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.setting-check { align-items: center; cursor: pointer; }
+.setting-check input { margin: 0; accent-color: var(--accent, #2563eb); width: 16px; height: 16px; cursor: pointer; }
+.setting-hint code { font-family: var(--mono); font-size: 11px; }
+/* Vim keys (settings.ts): the status bar under the editor, and the block cursor of normal mode. */
+.cm-vim-panel { font-family: var(--mono); font-size: 12px; padding: 2px 10px; background: var(--surface); color: var(--muted); border-top: 1px solid var(--border); min-height: 1.6em; }
+.cm-vim-panel input { font-family: var(--mono); font-size: 12px; color: var(--text); background: transparent; border: 0; outline: none; }
+.cm-editor .cm-fat-cursor { background: var(--accent, #2563eb) !important; opacity: 0.45; outline: none !important; }
+.cm-editor:not(.cm-focused) .cm-fat-cursor { background: none !important; outline: 1px solid var(--accent, #2563eb) !important; }
 .setting-hint { color: var(--muted); font-size: 12px; margin: 8px 0 0; line-height: 1.4; }
 
 /* ---------- file tree show/hide ---------- */

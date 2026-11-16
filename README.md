@@ -76,7 +76,8 @@ packages, or switches to the system's TeX.
 - **Reload from disk** (↻) after git or another tool changed files; edits autosave.
 - **Several windows**, each with its own project: the dock's *New Window*, Ctrl+Shift+N (⌘⇧N on
   the Mac), or *Open in new window* in the project picker.
-- ⚙ **Settings**: light or dark theme, font size, and text width.
+- ⚙ **Settings**: light or dark theme, font size, text width, and **Vim keys** (normal, insert and
+  visual modes in both Visual and Source mode; `:w` saves).
 
 ## Running from source
 
