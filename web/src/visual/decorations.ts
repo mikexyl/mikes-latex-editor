@@ -701,11 +701,17 @@ function build(state: EditorState, tree: Tree): Built {
           // They stay hidden while editing so typing inside them feels like normal text.
           const editing = touches(review.from, review.to);
           const [a, b] = review.args;
+          // Signed changes (\deleted[id=XL]{..}) show the initials as a small tag before the text.
+          const tag = review.author ? `${review.author}` : '';
+          const signed = (to: number) => {
+            if (!tag) return hide(review.from, to);
+            atomic.push(Decoration.replace({ widget: new TextWidget(tag, `rv-change-author rv-change-author-${review.kind}`) }).range(review.from, to));
+          };
           if (review.kind === 'added' || review.kind === 'deleted') {
-            hide(review.from, a.open + 1);
+            signed(a.open + 1);
             hide(a.close, review.to);
           } else if (review.kind === 'replaced') {
-            hide(review.from, a.open + 1);
+            signed(a.open + 1);
             hide(a.close, b.open + 1);
             hide(b.close, review.to);
           } else if (review.kind === 'highlight' && !editing) {

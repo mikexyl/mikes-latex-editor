@@ -391,6 +391,15 @@ span.vc-graphics { display: inline-block; vertical-align: middle; }
 .rv-highlight { background: var(--highlight-bg); }
 .rv-comment-text { background: var(--comment-bg); }
 ins.rv-added, del.rv-deleted { padding: 0 2px; border-radius: 2px; }
+/* Initials of whoever suggested a change, before its text in visual mode. */
+.rv-change-author {
+  font: 700 0.62em/1 var(--sans, system-ui, sans-serif); letter-spacing: 0.02em;
+  vertical-align: 0.35em; padding: 1px 3px; margin-right: 2px; border-radius: 3px;
+  border: 1px solid currentColor; text-decoration: none;
+}
+.rv-change-author-added { color: var(--added-text); background: var(--added-bg); }
+.rv-change-author-deleted { color: var(--deleted-text); background: var(--deleted-bg); }
+.rv-change-author-replaced { color: var(--added-text); background: var(--added-bg); }
 
 .rv-comment {
   font: 12px/1.4 var(--sans);
