@@ -50,8 +50,11 @@ const noteCompartment = new Compartment();
 const vimCompartment = new Compartment();
 // Vim keys (Settings): ahead of every other keymap so Escape, hjkl, … reach vim first. The status
 // bar under the editor shows the mode and takes : commands; inline \input editors go without one.
-const vimMain = Prec.highest(vim({ status: true }));
-const vimInline = Prec.highest(vim());
+// cm-vim-on lets style.css draw this editor's own cursor (editors for \input files are nested in
+// the main one, so plain descendant selectors would also reach their cursors).
+const vimOn = EditorView.editorAttributes.of({ class: 'cm-vim-on' });
+const vimMain = [Prec.highest(vim({ status: true })), vimOn];
+const vimInline = [Prec.highest(vim()), vimOn];
 const vimExtension = (on: boolean, inline: boolean) => (on ? (inline ? vimInline : vimMain) : []);
 let saveHook = () => {};
 // :w saves, like ⌘S / Ctrl+S; :wq and :x just save too (there's no window to close).

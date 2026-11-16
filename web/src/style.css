@@ -747,8 +747,23 @@ button.problems-summary:hover { text-decoration: none; color: var(--text); }
 /* Vim keys (settings.ts): the status bar under the editor, and the block cursor of normal mode. */
 .cm-vim-panel { font-family: var(--mono); font-size: 12px; padding: 2px 10px; background: var(--surface); color: var(--muted); border-top: 1px solid var(--border); min-height: 1.6em; }
 .cm-vim-panel input { font-family: var(--mono); font-size: 12px; color: var(--text); background: transparent; border: 0; outline: none; }
-.cm-editor .cm-fat-cursor { background: var(--accent, #2563eb) !important; opacity: 0.45; outline: none !important; }
-.cm-editor:not(.cm-focused) .cm-fat-cursor { background: none !important; outline: 1px solid var(--accent, #2563eb) !important; }
+/* A solid orange block with the letter under it in contrast, so it stands out from text, selections
+   and the green accent in both themes; insert mode's line cursor is thicker, in the same color.
+   Only each editor's own cursor (> children): \input editors sit inside the main editor, which isn't
+   focused while they are, and vim's own "unfocused" outline style would otherwise reach them. */
+:root { --vim-cursor: #e8590c; --vim-cursor-text: #ffffff; }
+:root[data-theme="dark"] { --vim-cursor: #ffa94d; --vim-cursor-text: #1b1c1e; }
+.cm-vim-on.cm-focused > .cm-scroller > .cm-vimCursorLayer > .cm-fat-cursor {
+  background: var(--vim-cursor) !important; color: var(--vim-cursor-text) !important;
+  outline: none !important; box-shadow: 0 0 0 1px var(--vim-cursor); border-radius: 1px;
+}
+.cm-vim-on:not(.cm-focused) > .cm-scroller > .cm-vimCursorLayer > .cm-fat-cursor {
+  background: none !important; color: transparent !important; box-shadow: none; outline: 1px solid var(--muted) !important;
+}
+.cm-vim-on > .cm-scroller > .cm-cursorLayer > .cm-cursor { border-left: 3px solid var(--vim-cursor) !important; margin-left: -1px; }
+/* Vim hides the normal cursor in normal mode with `.cm-vimMode .cm-cursorLayer`, which also reaches
+   an \input editor in insert mode whenever the main editor is in normal mode: show it again. */
+.cm-vim-on > .cm-scroller:not(.cm-vimMode) > .cm-cursorLayer:not(.cm-vimCursorLayer) { display: block !important; }
 .setting-hint { color: var(--muted); font-size: 12px; margin: 8px 0 0; line-height: 1.4; }
 
 /* ---------- file tree show/hide ---------- */
