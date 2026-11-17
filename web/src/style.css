@@ -245,7 +245,7 @@ button.link:hover { color: var(--text); text-decoration: underline; }
 .splitter { cursor: col-resize; background: var(--border); }
 .splitter:hover, .splitter.dragging { background: var(--accent); }
 
-.pdf-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.pdf-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; position: relative; }
 .pdf { flex: 1; overflow: auto; background: var(--pdf-bg); }
 .pdf-pages { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 16px; width: max-content; min-width: 100%; }
 .pdf-page { background: white; box-shadow: 0 1px 3px rgb(0 0 0 / 0.18); }
@@ -548,6 +548,17 @@ ins.rv-added, del.rv-deleted { padding: 0 2px; border-radius: 2px; }
 }
 
 .pdf { position: relative; }
+.pdf:focus { outline: none; }
+/* Links over a PDF page: hyperref's, or citations found in the text. */
+.pdf-link { position: absolute; cursor: pointer; border-radius: 2px; }
+.pdf-link:hover { background: rgb(47 99 192 / 0.14); box-shadow: inset 0 -1.5px 0 rgb(47 99 192 / 0.7); }
+.pdf-back {
+  position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 5;
+  padding: 5px 14px; border-radius: 999px; font-size: 12px;
+  background: var(--panel, #fff); color: var(--text); border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.18); cursor: pointer;
+}
+.pdf-back[hidden] { display: none; }
 .pdf-page-wrap { position: relative; background: white; box-shadow: 0 1px 3px rgb(0 0 0 / 0.18); }
 .pdf-page-wrap .pdf-page { display: block; width: 100%; height: 100%; box-shadow: none; }
 .pdf-highlight {

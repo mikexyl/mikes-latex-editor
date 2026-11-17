@@ -76,6 +76,10 @@ packages, or switches to the system's TeX.
   Accept, Reject, Resolve and Done, one at a time or all at once.
 - **Source ↔ PDF**: *Find in PDF* (⌘⌥J / Ctrl+Alt+J) jumps to the cursor's spot in the PDF, and
   double-clicking the PDF jumps to the source, across `\input` files.
+- **Links in the PDF**: click a citation like [2] to jump to its entry in the reference list
+  (hover it to read the reference), or a link to a section, figure, table or equation; web links
+  open in your browser. **← Back** (or Alt+←) returns to where you were. With `hyperref` the
+  PDF's own links are used; without it, numbered citations are found in the text.
 - **Search all files** (sidebar *Search*, Ctrl+Shift+F / ⌘⇧F): every `.tex`, `.bib` and `.md`
   file, including unsaved edits, with match case, whole word, regular expressions and *Replace all*.
 - **Contents** (sidebar): the document's sections across `\input` files, numbered as in the PDF;
