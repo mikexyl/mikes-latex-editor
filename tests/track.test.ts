@@ -118,6 +118,14 @@ check('outline done removes it', body(s.update(resolveSpec(s, notes, true)).stat
 s = mk('A \\revoutline{XL}{say why} B', 'A \\revoutline{XL}{say'.length, 'revnote');
 s = type(s, ' more');
 check('typing in outline untracked', body(s), 'A \\revoutline{XL}{say more why} B');
+// \revask[paper text]{author}{question}: asks for something to be clarified
+s = mk('We use \\revask[a robust kernel]{XL}{Which one?} here. \\revask{AB}{Why?}', undefined, 'revnote');
+notes = findReviewItems(s);
+check('questions found', notes.map((i) => `${i.kind}:${i.author}:${i.note}:${i.quote ? s.sliceDoc(i.quote.from, i.quote.to) : ''}`).join(','), 'ask:XL:Which one?:a robust kernel,ask:AB:Why?:');
+check('answered questions keep the paper text', body(s.update(resolveSpec(s, notes, true)).state), 'We use a robust kernel here.');
+s = mk('A \\revask{XL}{why} B', 'A \\revask{XL}{wh'.length, 'revnote');
+s = type(s, 'o says');
+check('typing in question untracked', body(s), 'A \\revask{XL}{who saysy} B');
 // Signed changes: \added[id=XL]{..} etc. with your initials
 setReviewAuthor('XL');
 s = mk('Hello world.', 5); s = type(s, 'X'); s = type(s, 'Y');

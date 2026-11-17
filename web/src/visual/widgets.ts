@@ -232,18 +232,20 @@ export class GraphicsWidget extends WidgetType {
 /** A comment shown inline as a small note. */
 export class CommentWidget extends WidgetType {
   constructor(
-    readonly note: string, readonly author: string, readonly variant: 'comment' | 'note' | 'outline' = 'comment',
+    readonly note: string, readonly author: string, readonly variant: 'comment' | 'note' | 'outline' | 'ask' = 'comment',
     /** Alone on its line: shown as a block (an outline standing in for a paragraph). */
     readonly block = false,
   ) { super(); }
   eq(o: CommentWidget) { return o.note === this.note && o.author === this.author && o.variant === this.variant && o.block === this.block; }
   toDOM() {
-    const cls = { comment: 'rv-comment', note: 'rv-comment rv-note', outline: 'rv-comment rv-outline' }[this.variant];
+    const cls = { comment: 'rv-comment', note: 'rv-comment rv-note', outline: 'rv-comment rv-outline', ask: 'rv-comment rv-ask' }[this.variant];
     const c = el('span', this.block ? `${cls} rv-block` : cls);
     if (this.variant === 'outline') c.append(el('span', 'rv-outline-label', 'To write'));
+    if (this.variant === 'ask') c.append(el('span', 'rv-ask-label', 'Question'));
     if (this.author) c.append(el('span', 'rv-comment-author', this.author));
-    c.append(document.createTextNode(this.note || (this.variant === 'outline' ? 'what goes here' : 'empty comment')));
-    c.title = this.variant === 'outline' ? 'Outline of text to write: click to edit' : 'Comment: click to edit';
+    c.append(document.createTextNode(this.note || ({ outline: 'what goes here', ask: 'what needs clarifying' } as Record<string, string>)[this.variant] || 'empty comment'));
+    c.title = this.variant === 'outline' ? 'Outline of text to write: click to edit'
+      : this.variant === 'ask' ? `Question${this.author ? ` from ${this.author}` : ''}: click to edit or answer` : 'Comment: click to edit';
     return c;
   }
   ignoreEvent() { return false; }
@@ -268,6 +270,7 @@ export class ReviewActionsWidget extends WidgetType {
       return b;
     };
     if (this.kind === 'outline') box.append(button('✓ Done', 'Written: remove the outline', true));
+    else if (this.kind === 'ask') box.append(button('✓ Answered', 'Clarified: remove the question, keep the text', true));
     else if (this.kind === 'comment' || this.kind === 'highlight' || this.kind === 'note') {
       box.append(button('✓ Resolve', this.kind === 'highlight' ? 'Resolve comment (removes it, keeps the text)' : 'Resolve (delete the note)', true));
     }

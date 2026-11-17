@@ -12,7 +12,7 @@ import { ReviewPanel, type ReviewSource } from './review/panel.ts';
 import { findIncludes, reviewAction } from './review/model.ts';
 import { joinLines } from './join-lines.ts';
 import { copyText, flash } from './visual/copy.ts';
-import { addComment, addOutline, suggestDeletion, setCommentPrefs, withInitials, type CommentPrefs } from './review/commands.ts';
+import { addComment, addOutline, addQuestion, suggestDeletion, setCommentPrefs, withInitials, type CommentPrefs } from './review/commands.ts';
 import { compareField, setCompareBase } from './compare/diff.ts';
 import { setAssetBase } from './visual/widgets.ts';
 import { setIncludeHost, includeHeights } from './visual/includes.ts';
@@ -1404,6 +1404,8 @@ $('strike-btn').onclick = () => {
   if (v.state.selection.main.empty) { setStatus('Select the text to strike out first.', true); v.focus(); return; }
   suggestDeletion(v);
 };
+$('ask-btn').onmousedown = (e) => e.preventDefault();
+$('ask-btn').onclick = () => { addQuestion(activeEditor()?.v ?? view); };
 $('outline-btn').onmousedown = (e) => e.preventDefault();
 $('outline-btn').onclick = () => { addOutline(activeEditor()?.v ?? view); };
 /** Copy a file's source (as edited, saved or not) and say so. */

@@ -2,7 +2,7 @@
 // deleted. Shown once the selection is made (not while the mouse is still dragging).
 import { StateEffect, StateField, type EditorState } from '@codemirror/state';
 import { EditorView, showTooltip, type Tooltip, ViewPlugin } from '@codemirror/view';
-import { addComment, getCommentPrefs, suggestDeletion, suggestEdit } from './commands.ts';
+import { addComment, addQuestion, getCommentPrefs, suggestDeletion, suggestEdit } from './commands.ts';
 
 const MAX_SELECTION = 20_000;
 
@@ -44,6 +44,7 @@ function toolbarDOM(view: EditorView): HTMLElement {
     : 'Comment on the selection (\\highlight[comment={…}]) — ⌘⌥M';
   bar.append(
     button('Comment', commentTitle, addComment),
+    button('Ask', `Ask for the selection to be clarified (\\revask[…]{${prefs.initials || 'initials'}}{…}) — ⌘⌥Q`, addQuestion),
     button('Suggest edit', 'Replace the selection with your suggestion, kept as a tracked change', suggestEdit),
     button('Delete', 'Mark the selection as deleted (tracked change)', suggestDeletion),
   );

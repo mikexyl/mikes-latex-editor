@@ -26,6 +26,12 @@ function build(state: EditorState): DecorationSet {
       }
       if (it.args.length === 2) mark(it.args[0], 'rv-note-author');
       mark(it.args[it.args.length - 1], 'rv-note-text', it.author ? `Note by ${it.author}` : 'Note');
+    } else if (it.kind === 'ask') {
+      if (it.quote && it.quote.to > it.quote.from) {
+        marks.push(Decoration.mark({ class: 'rv-ask-quote', attributes: { title: `Question${who}: ${it.note}` } }).range(it.quote.from, it.quote.to));
+      }
+      if (it.args.length === 2) mark(it.args[0], 'rv-ask-author');
+      mark(it.args[it.args.length - 1], 'rv-ask-text', it.author ? `Question from ${it.author}` : 'Question');
     } else if (it.kind === 'outline') {
       if (it.args.length === 2) mark(it.args[0], 'rv-outline-author');
       mark(it.args[it.args.length - 1], 'rv-outline-text', it.author ? `To write (outline by ${it.author})` : 'To write (outline)');

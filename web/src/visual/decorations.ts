@@ -725,11 +725,14 @@ function build(state: EditorState, tree: Tree): Built {
             atomic.push(Decoration.widget({ widget: new CommentWidget(review.note, review.author), side: 1 }).range(review.to));
           } else if (review.kind === 'comment' && !editing) {
             atomic.push(Decoration.replace({ widget: new CommentWidget(review.note, review.author) }).range(review.from, review.to));
-          } else if (review.kind === 'note' && review.quote && !editing) {
+          } else if ((review.kind === 'note' || review.kind === 'ask') && review.quote && !editing) {
             // \note[text]{XL}{..}: the text reads on as part of the paper, the note follows it.
             hide(review.from, review.quote.from);
             hide(review.quote.to, review.to);
-            atomic.push(Decoration.widget({ widget: new CommentWidget(review.note, review.author, 'note'), side: 1 }).range(review.to));
+            atomic.push(Decoration.widget({ widget: new CommentWidget(review.note, review.author, review.kind), side: 1 }).range(review.to));
+          } else if (review.kind === 'ask' && !editing) {
+            const widget = new CommentWidget(review.note, review.author, 'ask', aloneOnLines(state, review));
+            atomic.push(Decoration.replace({ widget }).range(review.from, review.to));
           } else if (review.kind === 'outline' && !editing) {
             const widget = new CommentWidget(review.note, review.author, 'outline', aloneOnLines(state, review));
             atomic.push(Decoration.replace({ widget }).range(review.from, review.to));
@@ -739,7 +742,7 @@ function build(state: EditorState, tree: Tree): Built {
           if (editing) {
             atomic.push(Decoration.widget({ widget: new ReviewActionsWidget(review.from, review.kind), side: 2 }).range(review.to));
           }
-          return (review.kind === 'comment' || review.kind === 'outline' || (review.kind === 'note' && !review.quote)) && !editing ? false : undefined;
+          return (review.kind === 'comment' || review.kind === 'outline' || ((review.kind === 'note' || review.kind === 'ask') && !review.quote)) && !editing ? false : undefined;
         }
         const ctrl = node.firstChild;
         if (!ctrl) return;

@@ -6,7 +6,7 @@
 import { Annotation, ChangeSet, EditorSelection, EditorState, Transaction, type ChangeSpec } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
-import { authorOpt, findReviewItems, getReviewAuthor, reviewAction, type ReviewItem } from './model.ts';
+import { authorOpt, findReviewItems, getReviewAuthor, isNoteLike, reviewAction, type ReviewItem } from './model.ts';
 
 const trackedEdit = Annotation.define<boolean>();
 
@@ -103,7 +103,7 @@ type Result = { changes: ChangeSpec[]; cursor: number } | { error: string };
 const ownArg = (it: ReviewItem) => (it.kind === 'added' || it.kind === 'replaced' || it.kind === 'comment' ? it.args[0] : null);
 /** All of a note's or outline's arguments (author and text) are comment text: edits there aren't tracked. */
 const inNote = (it: ReviewItem, from: number, to: number) =>
-  (it.kind === 'note' || it.kind === 'outline') && it.args.some((a) => from >= a.open + 1 && to <= a.close);
+  isNoteLike(it.kind) && it.args.some((a) => from >= a.open + 1 && to <= a.close);
 /** Made by you (same initials, or both unsigned): your typing may merge into it. */
 const mine = (it: ReviewItem) => it.author === getReviewAuthor();
 const deletedArg = (it: ReviewItem) => (it.kind === 'deleted' ? it.args[0] : it.kind === 'replaced' ? it.args[1] : null);

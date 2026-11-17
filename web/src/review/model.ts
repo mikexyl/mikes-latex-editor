@@ -6,11 +6,13 @@
 // for a note about a piece of the paper (e.g. defined as
 // \newcommand{\revnote}[3][]{#1\textcolor{red}{[#2: #3]}}), which also prints in the PDF.
 // Outlines, \revoutline{author}{what to write here}, mark text still to be written.
+// Questions, \revask{author}{question} or \revask[paper text]{author}{question}, ask a co-author (or
+// an agent working on the paper) to clarify something.
 import { Annotation, Facet, type EditorState, type TransactionSpec } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
 
-export type ReviewKind = 'added' | 'deleted' | 'replaced' | 'highlight' | 'comment' | 'note' | 'outline';
+export type ReviewKind = 'added' | 'deleted' | 'replaced' | 'highlight' | 'comment' | 'note' | 'outline' | 'ask';
 
 /** Name of the note macro (without backslash). Configured per project. */
 export const noteMacroFacet = Facet.define<string, string>({ combine: (v) => v[0] ?? 'revnote' });
@@ -19,6 +21,8 @@ export const LEGACY_NOTE_MACRO = 'note';
 export const REVIEW_KINDS = new Set<string>(['added', 'deleted', 'replaced', 'highlight', 'comment']);
 /** Outline macro: what still has to be written at this spot, \revoutline{author}{text}. */
 export const OUTLINE_MACRO = 'revoutline';
+/** Question macro: asks for something to be clarified, \revask[paper text]{author}{question}. */
+export const ASK_MACRO = 'revask';
 
 /** A brace argument: `open` is the position of `{`, `close` the position of `}`. */
 export type Arg = { open: number; close: number };
@@ -65,8 +69,9 @@ export function itemFromNode(state: EditorState, node: SyntaxNode): ReviewItem |
   const name = state.sliceDoc(ctrl.from + 1, ctrl.to);
   const isNote = name === state.facet(noteMacroFacet) || name === LEGACY_NOTE_MACRO;
   const isOutline = name === OUTLINE_MACRO;
-  if (!isNote && !isOutline && !REVIEW_KINDS.has(name)) return null;
-  const kind = isNote ? 'note' : isOutline ? 'outline' : name;
+  const isAsk = name === ASK_MACRO;
+  if (!isNote && !isOutline && !isAsk && !REVIEW_KINDS.has(name)) return null;
+  const kind = isNote ? 'note' : isOutline ? 'outline' : isAsk ? 'ask' : name;
   const args: Arg[] = [];
   for (const a of node.getChildren('TextArgument')) {
     const open = a.getChild('OpenBrace');
@@ -74,7 +79,7 @@ export function itemFromNode(state: EditorState, node: SyntaxNode): ReviewItem |
     if (!open || !close) return null;
     args.push({ open: open.from, close: close.from });
   }
-  const noteLike = kind === 'note' || kind === 'outline';
+  const noteLike = kind === 'note' || kind === 'outline' || kind === 'ask';
   if (noteLike ? args.length < 1 || args.length > 2 : args.length !== (kind === 'replaced' ? 2 : 1)) return null;
   const optNode = node.getChild('OptionalArgument');
   const opt = optNode ? { from: optNode.from, to: optNode.to } : null;
@@ -90,7 +95,7 @@ export function itemFromNode(state: EditorState, node: SyntaxNode): ReviewItem |
       note: content(state, args[args.length - 1]).trim(),
     };
   }
-  if (kind === 'note') {
+  if (kind === 'note' || kind === 'ask') {
     // \note[text]{..}{..}: the text the note is about; \note[{a]b}] protects a `]` in it.
     let quote: { from: number; to: number } | undefined;
     if (opt && args.length === 2) { // (with one argument, [..] holds options: \note[id=XL]{text})
@@ -100,7 +105,7 @@ export function itemFromNode(state: EditorState, node: SyntaxNode): ReviewItem |
       }
     }
     return {
-      kind: 'note',
+      kind,
       quote,
       from: node.from,
       to: args[args.length - 1].close + 1,
@@ -153,6 +158,7 @@ export function resolvedText(state: EditorState, it: ReviewItem, accept: boolean
     case 'comment': return '';
     case 'note': return it.quote ? state.sliceDoc(it.quote.from, it.quote.to) : '';
     case 'outline': return '';
+    case 'ask': return it.quote ? state.sliceDoc(it.quote.from, it.quote.to) : '';
   }
 }
 
@@ -163,7 +169,7 @@ export function resolveChange(state: EditorState, it: ReviewItem, accept: boolea
   if (!insert) {
     const before = state.sliceDoc(from - 1, from);
     const after = state.sliceDoc(to, to + 1);
-    if (before === ' ' && (after === ' ' || after === '.' || after === ',')) from--;
+    if (before === ' ' && (after === ' ' || after === '.' || after === ',' || after === '\n' || after === '')) from--;
     else if ((before === '' || before === '\n') && after === ' ') to++;
   }
   return { from, to, insert };
@@ -182,7 +188,7 @@ export function resolveSpec(state: EditorState, items: ReviewItem[], accept: boo
 }
 
 export function itemLabel(it: ReviewItem): string {
-  return { added: 'Added', deleted: 'Deleted', replaced: 'Replaced', highlight: 'Comment', comment: 'Comment', note: 'Note', outline: 'To write' }[it.kind];
+  return { added: 'Added', deleted: 'Deleted', replaced: 'Replaced', highlight: 'Comment', comment: 'Comment', note: 'Note', outline: 'To write', ask: 'Question' }[it.kind];
 }
 
 /** Short readable text of an item, for the review panel. */
@@ -194,14 +200,16 @@ export function itemSummary(state: EditorState, it: ReviewItem): { text: string;
   if (it.kind === 'replaced') return { text: clip(content(state, it.args[0])), old: clip(content(state, it.args[1])) };
   if (it.kind === 'highlight') return { text: clip(it.note), old: clip(content(state, it.args[0])) };
   if (it.kind === 'outline') return { text: clip(it.note) };
-  if (it.kind === 'note') return { text: clip(it.note), old: it.quote ? clip(state.sliceDoc(it.quote.from, it.quote.to)) : undefined };
+  if (it.kind === 'note' || it.kind === 'ask') return { text: clip(it.note), old: it.quote ? clip(state.sliceDoc(it.quote.from, it.quote.to)) : undefined };
   return { text: clip(content(state, it.args[0])) };
 }
 
 /** Comments of any style (resolved, not accepted/rejected). */
 export const isCommentKind = (k: ReviewKind) => k === 'comment' || k === 'highlight' || k === 'note';
-/** Items resolved rather than accepted or rejected: comments and outlines. */
-export const isResolvable = (k: ReviewKind) => isCommentKind(k) || k === 'outline';
+/** Items resolved rather than accepted or rejected: comments, outlines and questions. */
+export const isResolvable = (k: ReviewKind) => isCommentKind(k) || k === 'outline' || k === 'ask';
+/** Items whose arguments (author and text) are all note text: \revnote, \revoutline, \revask. */
+export const isNoteLike = (k: ReviewKind) => k === 'note' || k === 'outline' || k === 'ask';
 
 /** The files a document \input-s or \include-s, as written (with .tex added), in order. */
 export function findIncludes(state: EditorState): { rel: string; pos: number }[] {

@@ -23,13 +23,15 @@ Overleaf, and diff cleanly.
 \revnote[the sentence in question]{XL}{Do we need this?}
 \highlight[comment={Which metric?}]{accuracy}   \comment{A standalone note}
 \revoutline{XL}{Motivate the problem with a failure case}
+\revask[a robust kernel]{XL}{Which kernel, and why?}
 ```
 
 The review macros use the syntax of the [`changes`](https://ctan.org/pkg/changes) package. When
 compiling, the editor supplies definitions for anything the paper doesn't define, so no preamble
 changes are needed. To compile elsewhere (Overleaf, a co-author's TeX), add
 `\usepackage{changes}`, `\newcommand{\revnote}[3][]{#1\textcolor{red}{[#2: #3]}}` and
-`\newcommand{\revoutline}[2]{\textcolor{blue}{[To write (#1): #2]}}`, or accept and resolve
+`\newcommand{\revoutline}[2]{\textcolor{blue}{[To write (#1): #2]}}` and
+`\newcommand{\revask}[3][]{#1\textcolor{purple}{[Question (#2): #3]}}`, or accept and resolve
 everything first.
 
 **3. TeX is bundled and easy to configure.**
@@ -54,6 +56,10 @@ packages, or switches to the system's TeX.
   `\revnote{XL}{…}` with your initials, or `\revnote[selection]{XL}{…}` on a selection, which
   highlights the text the note is about. Notes print in red in the PDF. Notes written as
   `\note{…}{…}` by earlier versions still work.
+- **Ask** (⌘⌥Q / Ctrl+Alt+Q): ask a co-author, or an agent working on the paper, to clarify
+  something with `\revask{XL}{…}`, or `\revask[selected text]{XL}{…}` about a selection (the text
+  stays in the paper). Shown as a purple "Question" box and printed in purple in the PDF. Mark it
+  answered once clarified: the question goes, the text stays.
 - **Outline** (⌘⌥O / Ctrl+Alt+O): sketch what still has to be written with
   `\revoutline{XL}{…}`, shown as a "To write" box and printed in blue in the PDF. Mark it done
   once written.

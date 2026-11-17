@@ -1,6 +1,6 @@
 import type { EditorView } from '@codemirror/view';
 import { EditorSelection } from '@codemirror/state';
-import { authorOpt, OUTLINE_MACRO, reviewAction, setReviewAuthor } from './model.ts';
+import { ASK_MACRO, authorOpt, OUTLINE_MACRO, reviewAction, setReviewAuthor } from './model.ts';
 import { unsafeAt, unsafeRange, reviewNotice, REASONS } from './track.ts';
 
 export type CommentPrefs = {
@@ -53,7 +53,7 @@ function askInitials(action = 'Add note'): Promise<string | null> {
   d.innerHTML = `
     <div class="pd-header"><h2 id="initials-dialog-title">Your initials</h2></div>
     <form class="pd-section" method="dialog">
-      <p class="pd-note">Notes, outlines and tracked changes are signed with them, e.g. \\${prefs.macro}{XL}{…} or \\deleted[id=XL]{…}. You can change them later in the review panel.</p>
+      <p class="pd-note">Notes, questions, outlines and tracked changes are signed with them, e.g. \\${prefs.macro}{XL}{…} or \\deleted[id=XL]{…}. You can change them later in the review panel.</p>
       <div class="pd-path">
         <input name="initials" type="text" placeholder="XL" spellcheck="false" autocomplete="off" aria-label="Initials" />
       </div>
@@ -154,6 +154,31 @@ export function addOutline(view: EditorView): boolean {
     selection: r.empty ? EditorSelection.cursor(r.from + prefix.length) : EditorSelection.range(r.from + prefix.length, r.from + prefix.length + selected.length),
     annotations: reviewAction.of(true),
     userEvent: 'review.outline',
+    scrollIntoView: true,
+  });
+  view.focus();
+  return true;
+}
+
+/**
+ * Ask a co-author (or an agent working on the paper) to clarify something: \revask{XL}{…} at the
+ * cursor, or \revask[selection]{XL}{…} about the selected text (which stays in the paper), with the
+ * cursor inside ready to type the question.
+ */
+export function addQuestion(view: EditorView, asked = false): boolean {
+  const { state } = view;
+  const r = state.selection.main;
+  if (!prefs.initials && !asked) { void withInitials('Ask', () => addQuestion(view, true)).then(() => view.focus()); return true; }
+  const why = r.empty ? unsafeAt(state, r.to) : unsafeRange(state, r.from, r.to);
+  if (why) return fail(why);
+  const selected = state.sliceDoc(r.from, r.to);
+  const quote = r.empty ? '' : `[${selected.includes(']') ? `{${selected}}` : selected}]`;
+  const prefix = `\\${ASK_MACRO}${quote}{${prefs.initials}}{`;
+  view.dispatch({
+    changes: { from: r.from, to: r.to, insert: `${prefix}}` },
+    selection: EditorSelection.cursor(r.from + prefix.length),
+    annotations: reviewAction.of(true),
+    userEvent: 'review.ask',
     scrollIntoView: true,
   });
   view.focus();
