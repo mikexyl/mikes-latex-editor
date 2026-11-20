@@ -79,6 +79,8 @@ export class PdfViewer {
     container.addEventListener('keydown', (e) => {
       if (e.altKey && e.key === 'ArrowLeft' && this.history.length) { e.preventDefault(); this.back(); }
     });
+    // Ctrl (⌘ on a Mac) + wheel, or a touchpad pinch, zooms around the pointer.
+    container.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
     container.addEventListener('mouseup', (e) => { if (e.button === 3 && this.history.length) { e.preventDefault(); this.back(); } });
     if (!container.hasAttribute('tabindex')) container.tabIndex = -1;
     let t: number | undefined;
@@ -106,6 +108,38 @@ export class PdfViewer {
     this.links = null;
     await this.render();
     await old?.destroy();
+  }
+
+  private zoomTimer: number | undefined;
+
+  private onWheel(e: WheelEvent) {
+    if (!(e.ctrlKey || e.metaKey) || !this.pages.length) return;
+    e.preventDefault();
+    const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+    const next = Math.min(4, Math.max(0.3, this.zoom * Math.exp(-Math.max(-100, Math.min(100, dy)) / 550)));
+    const f = next / this.zoom;
+    if (Math.abs(f - 1) < 1e-3) return;
+    this.zoom = next;
+    // Scale the pages already drawn right away (the canvases stretch), keeping the spot under the
+    // pointer in place; draw them sharp at the new size once the wheel stops.
+    const c = this.container;
+    // The page under the pointer (or the nearest one), and where on it the pointer is.
+    const anchor = this.pages.find((p) => p.wrap.getBoundingClientRect().bottom >= e.clientY) ?? this.pages[this.pages.length - 1];
+    const before = anchor.wrap.getBoundingClientRect();
+    const fx = (e.clientX - before.left) / before.width, fy = (e.clientY - before.top) / before.height;
+    c.classList.add('pdf-zooming');
+    for (const p of this.pages) {
+      p.wrap.style.width = `${parseFloat(p.wrap.style.width) * f}px`;
+      p.wrap.style.height = `${parseFloat(p.wrap.style.height) * f}px`;
+      p.scale *= f;
+    }
+    const after = anchor.wrap.getBoundingClientRect();
+    c.scrollLeft += after.left + fx * after.width - e.clientX;
+    c.scrollTop += after.top + fy * after.height - e.clientY;
+    clearTimeout(this.zoomTimer);
+    this.zoomTimer = window.setTimeout(() => {
+      void this.render().then(() => c.classList.remove('pdf-zooming'));
+    }, 180);
   }
 
   setZoom(z: number) {
