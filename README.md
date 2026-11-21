@@ -78,6 +78,8 @@ packages, or switches to the system's TeX.
   double-clicking the PDF jumps to the source, across `\input` files.
 - **PDF zoom**: Ctrl + mouse wheel (⌘ + wheel on a Mac), or pinching on a touchpad, zooms around
   the pointer; − / Fit / + in the PDF header do the same in steps.
+- **PDF pages**: the PDF header shows the page in view ("3 / 16"); type a page number and press
+  Enter to go there, or use ↑ / ↓ in the box to step through pages.
 - **Links in the PDF**: click a citation like [2] to jump to its entry in the reference list
   (hover it to read the reference), or a link to a section, figure, table or equation; web links
   open in your browser. **← Back** (or Alt+←) returns to where you were. With `hyperref` the

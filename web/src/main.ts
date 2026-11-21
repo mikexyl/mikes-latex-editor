@@ -1346,6 +1346,34 @@ $('problems-toggle').onclick = () => setProblemsCollapsed(!problemsCollapsed);
 $('problems-summary').onclick = () => setProblemsCollapsed(!problemsCollapsed);
 setProblemsCollapsed(problemsCollapsed);
 $('zoom-in').onclick = () => pdf.zoomIn();
+// Page in view, and jumping to a page.
+{
+  const nav = $('pdf-page-nav');
+  const input = $('pdf-page') as HTMLInputElement;
+  const count = $('pdf-page-count');
+  pdf.onPageChange = (page, pages) => {
+    nav.hidden = pages === 0;
+    count.textContent = ` / ${pages}`;
+    input.style.width = `${String(pages).length + 1.2}ch`;
+    if (document.activeElement !== input) input.value = String(page);
+  };
+  const go = () => {
+    const n = parseInt(input.value, 10);
+    if (Number.isFinite(n)) pdf.goToPage(n);
+    input.value = String(pdf.currentPage);
+  };
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); go(); input.select(); }
+    else if (e.key === 'Escape') { input.value = String(pdf.currentPage); input.blur(); }
+    else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      pdf.goToPage(pdf.currentPage + (e.key === 'ArrowUp' ? -1 : 1));
+      input.value = String(pdf.currentPage);
+    }
+  });
+  input.addEventListener('focus', () => input.select());
+  input.addEventListener('blur', () => { input.value = String(pdf.currentPage); });
+}
 $('zoom-out').onclick = () => pdf.zoomOut();
 $('zoom-fit').onclick = () => pdf.fit();
 

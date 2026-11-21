@@ -133,6 +133,14 @@ button.link:hover { color: var(--text); text-decoration: underline; }
   background: var(--surface);
 }
 .pane-header .spacer { flex: 1; }
+.pdf-page-nav { display: inline-flex; align-items: center; font-size: 12px; font-variant-numeric: tabular-nums; margin-right: 4px; white-space: nowrap; }
+.pdf-page-nav[hidden] { display: none; }
+.pdf-page-nav input {
+  min-width: 2.2ch; padding: 1px 3px; text-align: center; font: inherit; color: var(--text);
+  background: transparent; border: 1px solid transparent; border-radius: 4px;
+}
+.pdf-page-nav input:hover { border-color: var(--border); }
+.pdf-page-nav input:focus { border-color: var(--border-strong); background: var(--panel); outline: none; }
 .pane-header button { padding: 1px 8px; white-space: nowrap; }
 /* The editor's toolbar wraps onto a second row in a narrow pane rather than squeezing buttons. */
 .editor-pane > .pane-header { flex-wrap: wrap; row-gap: 4px; }

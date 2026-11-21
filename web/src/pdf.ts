@@ -67,6 +67,10 @@ export class PdfViewer {
   private links: Promise<PageLink[][]> | null = null;
   private history: { top: number; left: number }[] = [];
   private backBtn: HTMLButtonElement;
+  /** Called with the page in view (1-based) and the page count, whenever either changes. */
+  onPageChange: ((page: number, count: number) => void) | null = null;
+  private shownPage = 0;
+  private pageFrame = 0;
 
   constructor(private container: HTMLElement) {
     this.backBtn = document.createElement('button');
@@ -79,6 +83,9 @@ export class PdfViewer {
     container.addEventListener('keydown', (e) => {
       if (e.altKey && e.key === 'ArrowLeft' && this.history.length) { e.preventDefault(); this.back(); }
     });
+    container.addEventListener('scroll', () => {
+      if (!this.pageFrame) this.pageFrame = requestAnimationFrame(() => { this.pageFrame = 0; this.reportPage(); });
+    }, { passive: true });
     // Ctrl (⌘ on a Mac) + wheel, or a touchpad pinch, zooms around the pointer.
     container.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
     container.addEventListener('mouseup', (e) => { if (e.button === 3 && this.history.length) { e.preventDefault(); this.back(); } });
@@ -191,6 +198,8 @@ export class PdfViewer {
     c.replaceChildren(pagesEl);
     this.pages = pages;
     void this.addLinks(doc, token);
+    this.shownPage = 0;
+    this.reportPage();
     c.scrollTop = scrollRatio * c.scrollHeight;
     c.scrollLeft = scrollLeftRatio * c.scrollWidth;
     if (this.pendingBoxes) {
@@ -225,6 +234,33 @@ export class PdfViewer {
       p.wrap.append(mark);
       setTimeout(() => mark.remove(), 1800);
     }
+  }
+
+  /** The page in view: the one at a third of the way down the pane (the last one at the bottom). */
+  get currentPage(): number {
+    if (!this.pages.length) return 0;
+    const c = this.container;
+    if (c.scrollTop + c.clientHeight >= c.scrollHeight - 2) return this.pages.length;
+    const line = c.getBoundingClientRect().top + Math.min(c.clientHeight / 3, 200);
+    let page = 1;
+    this.pages.forEach((p, i) => { if (p.wrap.getBoundingClientRect().top <= line) page = i + 1; });
+    return page;
+  }
+
+  private reportPage() {
+    const page = this.currentPage;
+    if (page === this.shownPage) return;
+    this.shownPage = page;
+    this.onPageChange?.(page, this.pages.length);
+  }
+
+  /** Scroll so page `n` (1-based) starts at the top of the pane. */
+  goToPage(n: number) {
+    const info = this.pages[Math.min(this.pages.length, Math.max(1, Math.round(n))) - 1];
+    if (!info) return;
+    const c = this.container;
+    c.scrollTop += info.wrap.getBoundingClientRect().top - c.getBoundingClientRect().top - 8;
+    this.reportPage();
   }
 
   /** Put each page's links over it, once they're known. */
@@ -351,6 +387,8 @@ export class PdfViewer {
   clear(message: string) {
     this.renderToken++;
     this.pages = [];
+    this.shownPage = 0;
+    this.onPageChange?.(0, 0);
     const p = document.createElement('p');
     p.className = 'pdf-empty';
     p.textContent = message;

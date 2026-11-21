@@ -273,6 +273,9 @@
           <span id="pdf-title">PDF</span>
           <button id="find-in-pdf" title="Show the cursor position in the PDF (⌘⌥J / Ctrl+Alt+J). Double-click the PDF to jump back.">Find in PDF</button>
           <span class="spacer"></span>
+          <span class="pdf-page-nav" id="pdf-page-nav" hidden title="Page in view: type a number and press Enter to go there">
+            <input id="pdf-page" type="text" inputmode="numeric" aria-label="Page" spellcheck="false" autocomplete="off" /><span id="pdf-page-count"></span>
+          </span>
           <button id="zoom-out" title="Zoom out">−</button>
           <button id="zoom-fit" title="Fit width">Fit</button>
           <button id="zoom-in" title="Zoom in">+</button>
