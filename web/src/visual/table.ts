@@ -1,7 +1,8 @@
 // Renders simple `tabular` environments as HTML tables in visual mode: rows split on \\, cells on
 // &, booktabs/\hline rules, \multicolumn, bold/italic text and inline math. Anything it can't
 // parse confidently returns null, and the source stays visible instead.
-import { WidgetType } from '@codemirror/view';
+import { WidgetType, type EditorView } from '@codemirror/view';
+import { editTableAt } from './table-editor.ts';
 import katex from 'katex';
 import type { Macros } from './math.ts';
 
@@ -207,9 +208,23 @@ function plain(tex: string): string {
 export class TableWidget extends WidgetType {
   constructor(readonly table: Table, readonly key: string, readonly macrosKey: string, readonly macros: Macros) { super(); }
   eq(o: TableWidget) { return o.key === this.key && o.macrosKey === this.macrosKey; }
-  toDOM() {
+  toDOM(view: EditorView) {
     const wrap = document.createElement('div');
     wrap.className = 'vc-table-wrap';
+    const edit = document.createElement('button');
+    edit.className = 'vc-table-edit';
+    edit.textContent = 'Edit table';
+    edit.title = 'Edit the cells, rows and columns of this table';
+    edit.onmousedown = (e) => e.preventDefault();
+    edit.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // The widget starts at the line with \begin{tabular}: look for the table from that line's end.
+      const at = view.state.doc.lineAt(view.posAtDOM(wrap)).to;
+      const why = editTableAt(view, at);
+      if (why) window.alert(why);
+    };
+    wrap.append(edit);
     const t = document.createElement('table');
     t.className = 'vc-table';
     const { rows, aligns, ruleBelow } = this.table;

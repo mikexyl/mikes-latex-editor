@@ -631,6 +631,48 @@ ins.rv-added, del.rv-deleted { padding: 0 2px; border-radius: 2px; }
 .vc-table tr.rule-below-thick td { border-bottom: 1.5px solid var(--text); }
 .vc-table tr.rule-below-thin td { border-bottom: 1px solid var(--text); }
 .vc-author-block, .vc-authors, .vc-title { overflow-wrap: anywhere; }
+/* Edit table button on a rendered table: shown while hovering the table. */
+.vc-table-wrap { position: relative; }
+.vc-table-edit {
+  position: absolute; top: 2px; right: 2px; z-index: 1;
+  font: 500 11px var(--sans); padding: 1px 7px; border: 1px solid var(--border); border-radius: 4px;
+  background: var(--surface); color: var(--muted); cursor: pointer; opacity: 0; transition: opacity 0.12s;
+}
+.vc-table-wrap:hover > .vc-table-edit, .vc-table-edit:focus-visible { opacity: 1; }
+.vc-table-edit:hover { color: var(--text); border-color: var(--muted); }
+
+/* ---------- table editor (table-editor.ts) ---------- */
+.table-editor { width: min(1100px, calc(100vw - 32px)); max-height: min(88vh, 900px); }
+.table-editor .te-hint { color: var(--muted); font-size: 12px; }
+.table-editor .te-body { flex: 1; min-height: 0; }
+.te-toolbar { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 4px 0 10px; }
+.te-group { display: inline-flex; align-items: center; gap: 4px; }
+.te-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-right: 2px; }
+.te-btn { padding: 2px 9px; font-size: 12px; }
+.te-btn.active { background: var(--primary-bg); border-color: var(--primary-border); color: var(--primary-text); }
+.te-grid-wrap { overflow: auto; min-height: 120px; border: 1px solid var(--border); border-radius: 6px; flex: 1; }
+.te-grid { border-collapse: collapse; font-family: var(--mono); font-size: 13px; }
+.te-grid th {
+  position: sticky; background: var(--surface); color: var(--muted); font: 500 11px var(--sans);
+  padding: 3px 8px; border: 1px solid var(--border); cursor: default; user-select: none;
+}
+.te-grid thead th { top: 0; z-index: 2; cursor: pointer; }
+.te-grid .te-rowhead { left: 0; z-index: 1; text-align: right; min-width: 28px; }
+.te-grid .te-corner { left: 0; z-index: 3; }
+.te-grid th.current { color: var(--text); background: var(--hover); }
+.te-align { margin-left: 5px; font-family: var(--mono); opacity: 0.7; }
+.te-grid td { border: 1px solid var(--border); padding: 0; vertical-align: top; }
+.te-grid tr.te-rule-thin > td { border-top: 2px solid var(--border-strong); }
+.te-grid tr.te-rule-thick > td { border-top: 3px solid var(--muted); }
+.te-grid td.te-merged { background: var(--hover); }
+.te-grid td.te-missing { background: repeating-linear-gradient(135deg, transparent 0 6px, var(--hover) 6px 7px); }
+.te-cell {
+  display: block; box-sizing: border-box; width: 100%; min-width: 9ch; max-width: 48ch;
+  field-sizing: content; resize: none; border: 0; outline: none; padding: 5px 8px;
+  font: inherit; color: var(--text); background: transparent; white-space: pre-wrap;
+}
+.te-cell:focus { background: var(--panel); box-shadow: inset 0 0 0 2px var(--primary-border, #8fb0e6); }
+.te-note { margin: 8px 0 0; }
 
 /* ---------- note macro: \note{XL}{...} ---------- */
 .rv-note {

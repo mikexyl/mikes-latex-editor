@@ -20,6 +20,7 @@ import { collectMacros, setProjectMacros } from './visual/math.ts';
 import { refreshVisual } from './visual/decorations.ts';
 import { setTikzContext } from './visual/tikz.ts';
 import { PdfViewer } from './pdf.ts';
+import { tableCommand } from './visual/table-editor.ts';
 import { FileViewer, VIEWABLE } from './viewer.ts';
 import { MARKDOWN } from './markdown.ts';
 import { fileParts, numberHeadings, type TocEntry } from './toc.ts';
@@ -1388,6 +1389,8 @@ function renderModeToggle() {
   $<HTMLButtonElement>('comment-btn').disabled = !enabled;
   $<HTMLButtonElement>('strike-btn').disabled = !enabled;
   $<HTMLButtonElement>('outline-btn').disabled = !enabled;
+  $<HTMLButtonElement>('ask-btn').disabled = !enabled;
+  $<HTMLButtonElement>('table-btn').disabled = !enabled;
   $<HTMLButtonElement>('join-btn').disabled = !enabled;
   $<HTMLButtonElement>('copy-btn').disabled = !current;
   $('editor').classList.toggle('tracking', tracking && enabled);
@@ -1434,6 +1437,8 @@ $('strike-btn').onclick = () => {
 };
 $('ask-btn').onmousedown = (e) => e.preventDefault();
 $('ask-btn').onclick = () => { addQuestion(activeEditor()?.v ?? view); };
+$('table-btn').onmousedown = (e) => e.preventDefault();
+$('table-btn').onclick = () => { tableCommand(activeEditor()?.v ?? view); };
 $('outline-btn').onmousedown = (e) => e.preventDefault();
 $('outline-btn').onclick = () => { addOutline(activeEditor()?.v ?? view); };
 /** Copy a file's source (as edited, saved or not) and say so. */

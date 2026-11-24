@@ -60,6 +60,11 @@ packages, or switches to the system's TeX.
   something with `\revask{XL}{…}`, or `\revask[selected text]{XL}{…}` about a selection (the text
   stays in the paper). Shown as a purple "Question" box and printed in purple in the PDF. Mark it
   answered once clarified: the question goes, the text stays.
+- **Table editor** (⌘⌥T / Ctrl+Alt+T, or **Edit table** on a table in visual mode): edit a
+  `tabular`'s cells in a grid, add or delete rows and columns, and set column alignment. Tab and
+  Enter move between cells (Tab in the last cell adds a row); ⌘↵ / Ctrl+↵ saves. Rules
+  (`\toprule`, `\hline`, …), comments and `\multicolumn` cells are kept, and rows you didn't touch
+  keep their exact source. With the cursor outside a table, **Table** inserts a new one.
 - **Outline** (⌘⌥O / Ctrl+Alt+O): sketch what still has to be written with
   `\revoutline{XL}{…}`, shown as a "To write" box and printed in blue in the PDF. Mark it done
   once written.

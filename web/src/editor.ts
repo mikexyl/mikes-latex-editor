@@ -10,6 +10,7 @@ import { latex } from './visual/language.ts';
 import { visualDecorations, enterNewParagraph } from './visual/decorations.ts';
 import { reviewHighlight } from './review/highlight.ts';
 import { trackChanges } from './review/track.ts';
+import { tableCommand } from './visual/table-editor.ts';
 import { addComment, addOutline, addQuestion, suggestDeletion } from './review/commands.ts';
 import { pageBreaks } from './pages.ts';
 import { compareExtension } from './compare/diff.ts';
@@ -81,6 +82,7 @@ export function editorExtensions(hooks: EditorHooks): Extension[] {
       { key: 'Mod-Alt-m', preventDefault: true, run: addComment },
       { key: 'Mod-Alt-o', preventDefault: true, run: addOutline },
       { key: 'Mod-Alt-q', preventDefault: true, run: (v) => addQuestion(v) },
+      { key: 'Mod-Alt-t', preventDefault: true, run: (v) => (tableCommand(v), true) },
       { key: 'Mod-Alt-d', preventDefault: true, run: suggestDeletion },
       { key: 'Mod-Alt-j', preventDefault: true, run: () => (hooks.onFindInPdf(), true) },
     ])),
