@@ -1,6 +1,7 @@
 // Math rendering with KaTeX, plus picking up \newcommand-style macros from the document.
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import { labelsToTags } from './eq-labels.ts';
 
 export type Macros = Record<string, string>;
 
@@ -10,9 +11,12 @@ const KATEX_ENVS = new Set([
   'multline', 'multline*', 'split', 'aligned', 'gathered', 'cases', 'CD',
 ]);
 
-export function prepareMath(content: string): string {
-  let tex = content
-    .replace(/\\label\s*\{[^}]*\}/g, '')
+/**
+ * `labels`: 'tag' shows each \label as its row's tag (KaTeX allows tags only in display math),
+ * 'notag' drops it and the row's number (the label is shown elsewhere), 'drop' just drops it.
+ */
+export function prepareMath(content: string, labels: 'tag' | 'notag' | 'drop' = 'tag'): string {
+  let tex = (labels === 'tag' ? labelsToTags(content) : content.replace(/\\label\s*\{[^}]*\}/g, labels === 'notag' ? '\\notag ' : ''))
     .replace(/\\nonumber\b/g, '\\notag');
   // eqnarray and IEEEeqnarray (rCl columns: `a & = & b`) aren't supported by KaTeX; align with
   // the relation moved into the right column looks the same (and keeps equation numbers).
@@ -32,13 +36,13 @@ export function prepareMath(content: string): string {
   return tex;
 }
 
-export function renderMath(el: HTMLElement, tex: string, display: boolean, macros: Macros) {
+export function renderMath(el: HTMLElement, tex: string, display: boolean, macros: Macros, tagLabels = display) {
   try {
-    katex.render(prepareMath(tex), el, {
+    katex.render(prepareMath(tex, !display ? 'drop' : tagLabels ? 'tag' : 'notag'), el, {
       displayMode: display,
       throwOnError: true,
       strict: 'ignore',
-      trust: false,
+      trust: (ctx) => ctx.command === '\\htmlClass', // only for equation labels (eq-labels.ts)
       macros: { ...macros }, // KaTeX mutates this when the math itself uses \def
     });
     el.classList.remove('vc-math-error');

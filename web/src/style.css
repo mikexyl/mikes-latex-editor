@@ -335,6 +335,11 @@ button.link:hover { color: var(--text); text-decoration: underline; }
 .vc-math-preview { border: 1px dashed var(--border); border-radius: 6px; background: var(--surface); }
 .vc-math-error { font-family: var(--mono); font-size: 0.85em; color: var(--error); white-space: pre-wrap; }
 .vc-math .katex { font-size: 1.05em; }
+/* \label{eq:x} shown as the equation's tag, in the colour of the \eqref chips that point at it. */
+.vc-math .vc-eq-label { font-family: var(--mono); font-size: 0.72em; color: var(--ref-text); }
+.vc-math-labelled { display: flex; align-items: center; gap: 12px; overflow: hidden; }
+.vc-math-labelled .vc-math-body { flex: 1; min-width: 0; overflow-x: auto; overflow-y: hidden; }
+.vc-math .vc-eq-side { flex: none; font-size: 11px; }
 
 .vc-hidden-line { height: 0; }
 .vc-env-begin {

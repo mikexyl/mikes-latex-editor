@@ -3,6 +3,7 @@
 import { WidgetType, EditorView } from '@codemirror/view';
 import * as pdfjs from 'pdfjs-dist';
 import { renderMath, type Macros } from './math.ts';
+import { equationLabels } from './eq-labels.ts';
 import { itemAt, resolveSpec, type ReviewKind } from '../review/model.ts';
 import { withRoot } from '../api.ts';
 
@@ -49,15 +50,31 @@ export class MathWidget extends WidgetType {
   eq(o: MathWidget) { return o.tex === this.tex && o.display === this.display && o.macrosKey === this.macrosKey && o.preview === this.preview; }
   toDOM() {
     const e = el(this.display ? 'div' : 'span', `vc-math${this.display ? ' vc-math-display' : ''}${this.preview ? ' vc-math-preview' : ''}`);
-    renderMath(e, this.tex, this.display, this.macros);
+    this.fill(e);
     if (!this.preview) return e;
     const wrap = el('div', 'vc-math-preview-wrap'); // spacing as padding, see style.css
     wrap.append(e);
     return wrap;
   }
   updateDOM(dom: HTMLElement) {
-    renderMath(this.preview ? (dom.firstElementChild as HTMLElement) : dom, this.tex, this.display, this.macros);
+    this.fill(this.preview ? (dom.firstElementChild as HTMLElement) : dom);
     return true;
+  }
+  /**
+   * Render into `e`. A display equation with one \label shows it beside the equation, where it
+   * can't overlap a wide one; with several (align rows), each row's label is that row's tag.
+   */
+  private fill(e: HTMLElement) {
+    const labels = this.display ? equationLabels(this.tex) : [];
+    const side = labels.length === 1;
+    e.classList.toggle('vc-math-labelled', side);
+    if (!side) { renderMath(e, this.tex, this.display, this.macros); return; }
+    e.textContent = '';
+    e.classList.remove('vc-math-error');
+    e.removeAttribute('title');
+    const body = el('span', 'vc-math-body');
+    e.append(body, el('span', 'vc-eq-label vc-eq-side', `(${labels[0]})`));
+    renderMath(body, this.tex, true, this.macros, false);
   }
   ignoreEvent() { return this.preview; }
 }
