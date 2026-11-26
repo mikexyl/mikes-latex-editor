@@ -20,6 +20,8 @@ import { itemFromNode, noteMacroFacet } from '../review/model.ts';
 export const mouseDownEffect = StateEffect.define<boolean>();
 /** Re-render visual mode (e.g. the project's macros changed). */
 export const refreshVisual = StateEffect.define<null>();
+/** Whether the selection reveals source (false: render everything, as if there were no cursor). */
+const revealEffect = StateEffect.define<boolean>();
 
 /** Environments whose \begin/\end lines become a label (or disappear, for lists). */
 const ENV_LABELS: Record<string, string> = {
@@ -317,11 +319,11 @@ export function enterNewParagraph(view: EditorView): boolean {
 
 type Built = { atomic: DecorationSet; marks: DecorationSet };
 
-function build(state: EditorState, tree: Tree): Built {
+function build(state: EditorState, tree: Tree, reveal = true): Built {
   const atomic: Range<Decoration>[] = [];
   const marks: Range<Decoration>[] = [];
   const doc = state.doc;
-  const touches = (from: number, to: number) => intersects(state, from, to);
+  const touches = (from: number, to: number) => reveal && intersects(state, from, to);
   const touchesLines = (from: number, to: number) => touches(doc.lineAt(from).from, doc.lineAt(to).to);
   const hide = (from: number, to: number, text = '') => {
     if (to > from) atomic.push(Decoration.replace({ widget: new TextWidget(text) }).range(from, to));
@@ -939,18 +941,20 @@ function build(state: EditorState, tree: Tree): Built {
   return { atomic: Decoration.set(atomicRanges, true), marks: Decoration.set(markRanges, true) };
 }
 
-type FieldValue = Built & { tree: Tree; mousedown: boolean };
+type FieldValue = Built & { tree: Tree; mousedown: boolean; reveal: boolean };
 
 const visualField = StateField.define<FieldValue>({
   create(state) {
     // Parse the whole document up front (bounded) so the first render is already visual.
     const tree = ensureSyntaxTree(state, state.doc.length, 1000) ?? syntaxTree(state);
-    return { ...build(state, tree), tree, mousedown: false };
+    return { ...build(state, tree), tree, mousedown: false, reveal: true };
   },
   update(value, tr) {
     let mousedown = value.mousedown;
     let mouseReleased = false;
+    let reveal = value.reveal;
     for (const e of tr.effects) {
+      if (e.is(revealEffect)) reveal = e.value;
       if (e.is(mouseDownEffect)) {
         mouseReleased = mousedown && !e.value;
         mousedown = e.value;
@@ -960,12 +964,12 @@ const visualField = StateField.define<FieldValue>({
     const stillParsing = tree.length < tr.state.doc.length;
     // Don't rebuild mid-drag: revealing source under the mouse would make the selection jump.
     if (stillParsing || (mousedown && !tr.docChanged)) {
-      return { ...value, mousedown, atomic: value.atomic.map(tr.changes), marks: value.marks.map(tr.changes) };
+      return { ...value, mousedown, reveal, atomic: value.atomic.map(tr.changes), marks: value.marks.map(tr.changes) };
     }
     const macroChanged = tr.startState.facet(noteMacroFacet) !== tr.state.facet(noteMacroFacet)
-      || tr.effects.some((e) => e.is(refreshVisual));
+      || tr.effects.some((e) => e.is(refreshVisual)) || reveal !== value.reveal;
     if (tree !== value.tree || tr.selection || tr.docChanged || mouseReleased || macroChanged) {
-      return { ...build(tr.state, tree), tree, mousedown };
+      return { ...build(tr.state, tree, reveal), tree, mousedown, reveal };
     }
     return mousedown === value.mousedown ? value : { ...value, mousedown };
   },
@@ -998,6 +1002,45 @@ const mouseTracker = ViewPlugin.define((view) => {
 });
 
 export const visualDecorations: Extension = [visualField, mouseTracker];
+
+/**
+ * For the inline editors of \input files: show source around the cursor only while the editor has
+ * focus. Their cursor stays put when you click back into the main text (or another file), and the
+ * table or equation it sits in would otherwise stay as source.
+ */
+export const revealOnlyWhenFocused: Extension = ViewPlugin.define((view) => {
+  let pending = 0;
+  const set = (on: boolean) => {
+    const field = view.state.field(visualField, false);
+    if (field && field.reveal !== on) view.dispatch({ effects: revealEffect.of(on) });
+  };
+  const onUp = () => { document.removeEventListener('mouseup', onUp); hide(); };
+  let buttons = 0;
+  const track = (e: MouseEvent) => { buttons = e.buttons; };
+  // Collapse after the click that moved focus away is done: changing heights mid-click would move
+  // the place it lands.
+  const hide = () => { clearTimeout(pending); pending = window.setTimeout(() => { if (!view.hasFocus) set(false); }); };
+  const focusin = () => { clearTimeout(pending); set(true); };
+  const focusout = () => {
+    if (buttons) document.addEventListener('mouseup', onUp);
+    else hide();
+  };
+  view.dom.addEventListener('focusin', focusin);
+  view.dom.addEventListener('focusout', focusout);
+  document.addEventListener('mousedown', track, true);
+  document.addEventListener('mouseup', track, true);
+  pending = window.setTimeout(() => { if (!view.hasFocus) set(false); });
+  return {
+    destroy() {
+      clearTimeout(pending);
+      view.dom.removeEventListener('focusin', focusin);
+      view.dom.removeEventListener('focusout', focusout);
+      document.removeEventListener('mousedown', track, true);
+      document.removeEventListener('mouseup', track, true);
+      document.removeEventListener('mouseup', onUp);
+    },
+  };
+});
 
 /** Source ranges visual mode currently hides (replaced by widgets), or null in source mode. */
 export function visualHiddenRanges(state: EditorState): DecorationSet | null {

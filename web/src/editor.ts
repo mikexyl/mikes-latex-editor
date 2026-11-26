@@ -7,7 +7,7 @@ import { HighlightStyle, StreamLanguage, syntaxHighlighting } from '@codemirror/
 import { tags as t } from '@lezer/highlight';
 import { stex } from '@codemirror/legacy-modes/mode/stex';
 import { latex } from './visual/language.ts';
-import { visualDecorations, enterNewParagraph } from './visual/decorations.ts';
+import { visualDecorations, enterNewParagraph, revealOnlyWhenFocused } from './visual/decorations.ts';
 import { reviewHighlight } from './review/highlight.ts';
 import { trackChanges } from './review/track.ts';
 import { tableCommand } from './visual/table-editor.ts';
@@ -67,6 +67,8 @@ const visualExtensions: Extension = [
   Prec.high(keymap.of([{ key: 'Enter', run: enterNewParagraph }])),
 ];
 
+const visualFor = (modes: Modes): Extension => (modes.inline ? [visualExtensions, revealOnlyWhenFocused] : visualExtensions);
+
 export const supportsVisual = (path: string) => /\.(tex|ltx)$/i.test(path);
 
 export function editorExtensions(hooks: EditorHooks): Extension[] {
@@ -105,7 +107,7 @@ export function createState(path: string, doc: string, base: Extension[], modes:
     extensions: [
       ...base,
       isTex ? [latex(), reviewHighlight, selectionToolbar] : StreamLanguage.define(stex),
-      visualCompartment.of(isTex && modes.visual ? visualExtensions : []),
+      visualCompartment.of(isTex && modes.visual ? visualFor(modes) : []),
       trackCompartment.of(isTex && modes.tracking ? trackChanges : []),
       noteCompartment.of(noteMacroFacet.of(modes.noteMacro)),
       vimCompartment.of(vimExtension(modes.vim, !!modes.inline)),
@@ -118,7 +120,7 @@ export function setModes(view: EditorView, path: string, modes: Modes) {
   const tex = supportsVisual(path);
   view.dispatch({
     effects: [
-      visualCompartment.reconfigure(tex && modes.visual ? visualExtensions : []),
+      visualCompartment.reconfigure(tex && modes.visual ? visualFor(modes) : []),
       trackCompartment.reconfigure(tex && modes.tracking ? trackChanges : []),
       noteCompartment.reconfigure(noteMacroFacet.of(modes.noteMacro)),
       vimCompartment.reconfigure(vimExtension(modes.vim, !!modes.inline)),
