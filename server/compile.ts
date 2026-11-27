@@ -26,8 +26,26 @@ export const buildDirFor = (main: string) => path.join(BUILD_DIR, path.dirname(m
 export const pdfPathFor = (root: string, main: string) =>
   path.join(root, buildDirFor(main), path.basename(main).replace(/\.tex$/, '.pdf'));
 
-export function compile(root: string, main: string): Promise<CompileResult> {
-  return compileFile(root, main, buildDirFor(main));
+export async function compile(root: string, main: string): Promise<CompileResult> {
+  const result = await compileFile(root, main, buildDirFor(main));
+  await publishPdf(root, main).catch(() => {});
+  return result;
+}
+
+/**
+ * Copy the PDF next to the main .tex file (paper.tex -> paper.pdf), as running latexmk there
+ * would leave it, so the project folder always has the latest build. Skipped when that copy is
+ * already as new; copied to a temporary name first, so a viewer never reads half a file.
+ */
+async function publishPdf(root: string, main: string) {
+  const built = await fs.stat(pdfPathFor(root, main)).catch(() => null);
+  if (!built) return;
+  const target = path.join(root, main.replace(/\.tex$/, '.pdf'));
+  const old = await fs.stat(target).catch(() => null);
+  if (old && old.mtimeMs >= built.mtimeMs && old.size === built.size) return;
+  const tmp = `${target}.${process.pid}.tmp`;
+  await fs.copyFile(pdfPathFor(root, main), tmp);
+  await fs.rename(tmp, target);
 }
 
 /**

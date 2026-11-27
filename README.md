@@ -40,6 +40,8 @@ IEEE, ACM, Elsevier, LNCS, REVTeX, biblatex, TikZ, algorithms, …). Nothing els
 installed, and compiles don't depend on what's on the machine. When a compile stops on a missing
 package, **Install & recompile** fixes it. ⚙ → **Manage TeX packages…** adds, updates or removes
 packages, or switches to the system's TeX.
+Build files go to `.latex-editor-build/`; after each compile the PDF is also copied next to the
+main file (`paper.tex` → `paper.pdf`).
 
 ## What you can do
 
